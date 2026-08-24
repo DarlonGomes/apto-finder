@@ -59,6 +59,20 @@ WHERE COALESCE((
   ORDER BY ph.observed_at DESC LIMIT 1
 ), -1) <> $2::integer`;
 
+// Until the dedup pipeline (milestone 4) clusters listings, every listing gets
+// its own unit, reusing the listing's uuid. Dedup will re-point unit_id later.
+const SEED_UNIT = `
+WITH need AS (
+  SELECT id, neighborhood, street, lat, lng, bedrooms, area_m2, parking_spots
+  FROM listings WHERE id = $1 AND unit_id IS NULL
+), ins AS (
+  INSERT INTO units (id, neighborhood, street, lat, lng, bedrooms, area_m2, parking_spots)
+  SELECT id, COALESCE(neighborhood, ''), street, lat, lng, bedrooms, area_m2, parking_spots
+  FROM need
+  ON CONFLICT (id) DO NOTHING
+)
+UPDATE listings SET unit_id = id WHERE id IN (SELECT id FROM need)`;
+
 export async function saveListing(client: Client, l: NormalizedListing): Promise<void> {
   const { rows } = await client.query(UPSERT, [
     l.source, l.sourceListingId, l.url,
@@ -70,4 +84,5 @@ export async function saveListing(client: Client, l: NormalizedListing): Promise
   ]);
   const row = rows[0];
   await client.query(PRICE_POINT, [row.id, row.total_monthly_cents]);
+  await client.query(SEED_UNIT, [row.id]);
 }
