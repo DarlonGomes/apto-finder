@@ -57,6 +57,8 @@ export interface UnitCard {
     rent_cents: number;
     condo_cents: number | null;
     iptu_monthly_cents: number | null;
+    insurance_cents: number | null;
+    service_fee_cents: number | null;
     cost_confidence: CostConfidence;
     source: Source;
     url: string;
