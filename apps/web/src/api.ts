@@ -5,6 +5,7 @@ export interface Filters {
   total_max: number | null;
   bedrooms_min: number;
   parking_min: number;
+  area_min: number | null; // m²
   pets: "required" | "unknown_ok" | "any";
   neighborhoods: string[];
   cost_confidence: "any" | "complete";
@@ -16,6 +17,7 @@ export const DEFAULT_FILTERS: Filters = {
   total_max: null,
   bedrooms_min: 2,
   parking_min: 1,
+  area_min: null,
   pets: "unknown_ok",
   neighborhoods: [],
   cost_confidence: "any",
@@ -28,6 +30,7 @@ export function filtersToParams(f: Filters): URLSearchParams {
   if (f.total_max != null) p.set("total_max", String(f.total_max));
   if (f.bedrooms_min !== 1) p.set("bedrooms_min", String(f.bedrooms_min));
   if (f.parking_min > 0) p.set("parking_min", String(f.parking_min));
+  if (f.area_min != null) p.set("area_min", String(f.area_min));
   if (f.pets !== "unknown_ok") p.set("pets", f.pets);
   if (f.neighborhoods.length) p.set("neighborhoods", f.neighborhoods.join(","));
   if (f.cost_confidence !== "any") p.set("cost_confidence", f.cost_confidence);
@@ -41,6 +44,7 @@ export function filtersFromParams(p: URLSearchParams): Filters {
     total_max: p.get("total_max") ? Number(p.get("total_max")) : null,
     bedrooms_min: Number(p.get("bedrooms_min") ?? 2),
     parking_min: Number(p.get("parking_min") ?? 1),
+    area_min: p.get("area_min") ? Number(p.get("area_min")) : null,
     pets: (p.get("pets") as Filters["pets"]) ?? "unknown_ok",
     neighborhoods: p.get("neighborhoods")?.split(",").filter(Boolean) ?? [],
     cost_confidence: (p.get("cost_confidence") as Filters["cost_confidence"]) ?? "any",

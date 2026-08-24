@@ -50,10 +50,14 @@ export function FilterSheet({
   });
 
   return (
-    <div className="fixed inset-0 z-20 flex flex-col justify-end" onClick={onClose}>
+    // Bottom sheet on mobile, centered modal on desktop
+    <div
+      className="fixed inset-0 z-20 flex flex-col justify-end md:items-center md:justify-center"
+      onClick={onClose}
+    >
       <div className="absolute inset-0 bg-ink/30" />
       <div
-        className="border-rule relative max-h-[85vh] overflow-y-auto rounded-t-xl border-t bg-paper p-4 pb-6"
+        className="border-rule relative max-h-[85vh] w-full overflow-y-auto rounded-t-xl border-t bg-paper p-4 pb-6 md:max-w-md md:rounded-xl md:border md:p-6 md:shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Total cost first, the largest control on screen */}
@@ -94,6 +98,16 @@ export function FilterSheet({
           <Select label="Vagas" value={String(draft.parking_min)} onChange={(v) => set("parking_min", Number(v))}>
             {[0, 1, 2].map((n) => (
               <option key={n} value={n}>{n}+</option>
+            ))}
+          </Select>
+          <Select
+            label="Área mín."
+            value={String(draft.area_min ?? "")}
+            onChange={(v) => set("area_min", v ? Number(v) : null)}
+          >
+            <option value="">qualquer</option>
+            {[50, 60, 70, 80, 90, 100, 120].map((n) => (
+              <option key={n} value={n}>{n} m²+</option>
             ))}
           </Select>
           <Select label="Pets" value={draft.pets} onChange={(v) => set("pets", v as Filters["pets"])}>

@@ -100,6 +100,7 @@ export default function App() {
       `R$${((filters.total_min ?? 0) / 100 / 1000).toFixed(1)}k–${
         filters.total_max != null ? (filters.total_max / 100 / 1000).toFixed(1) + "k" : "∞"
       }`,
+    filters.area_min != null && `${filters.area_min}m²+`,
     filters.pets === "required" && "pet confirmado",
     filters.cost_confidence === "complete" && "preço completo",
   ].filter(Boolean);
