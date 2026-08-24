@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+/* PRD 9.2 tokens */
+@theme {
+  --color-ink: #14181c;
+  --color-paper: #fafaf7;
+  --color-rule: #e2e2dc;
+  --color-muted: #6b7280;
+  --color-flag: #b4472c;
+  --color-good: #2f6b4f;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+/* prices must align vertically down the list */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
