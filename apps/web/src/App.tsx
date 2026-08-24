@@ -105,7 +105,7 @@ export default function App() {
   ].filter(Boolean);
 
   return (
-    <div className="mx-auto max-w-lg">
+    <div className="mx-auto max-w-lg md:max-w-5xl">
       <header className="border-rule sticky top-0 z-10 border-b bg-paper/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-semibold">
@@ -146,13 +146,15 @@ export default function App() {
             Nenhum imóvel com esses filtros. Afrouxe o custo total ou os bairros.
           </p>
         )}
-        {all.map((u) => (
-          <Card
-            key={u.id}
-            unit={u}
-            onTriage={(unit, status) => triage.mutate({ unit, status })}
-          />
-        ))}
+        <div className="md:grid md:grid-cols-2 md:gap-4 md:p-4">
+          {all.map((u) => (
+            <Card
+              key={u.id}
+              unit={u}
+              onTriage={(unit, status) => triage.mutate({ unit, status })}
+            />
+          ))}
+        </div>
         {units.hasNextPage && (
           <button
             onClick={() => units.fetchNextPage()}

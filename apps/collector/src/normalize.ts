@@ -33,6 +33,8 @@ export function normalizeGlue(wrapper: any): NormalizedListing | null {
   if (!l || l.status === "INACTIVE") return null;
 
   const p = (l.pricingInfos ?? []).find((x: any) => x?.businessType === "RENTAL");
+  // Temporada listings price per day; only monthly rentals attend us.
+  if (p?.rentalInfo?.period && p.rentalInfo.period !== "MONTHLY") return null;
   const rentCents = centsFromReais(p?.price);
   if (!rentCents) return null;
 

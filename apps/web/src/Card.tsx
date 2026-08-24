@@ -17,12 +17,18 @@ export function Card({
   const [dx, setDx] = useState(0);
   const start = useRef<{ x: number; y: number; scrolling: boolean } | null>(null);
 
-  const meta = [
-    unit.bedrooms != null && `${unit.bedrooms} quartos`,
-    unit.area_m2 != null && `${unit.area_m2}m²`,
-    unit.parking_spots != null && `${unit.parking_spots} vaga${unit.parking_spots > 1 ? "s" : ""}`,
-    unit.accepts_pets === true && (unit.pets_evidence === "amenity" ? "aceita pet" : "aceita pet*"),
-  ].filter(Boolean);
+  const pets =
+    unit.accepts_pets === true
+      ? `sim${unit.pets_evidence === "description" ? "*" : ""}`
+      : unit.accepts_pets === false
+        ? "não"
+        : "não informado";
+  const details: [string, string][] = [
+    ["🛏️", `${unit.bedrooms ?? "?"} quartos`],
+    ["📐", `${unit.area_m2 ?? "?"} m²`],
+    ["🚗", `${unit.parking_spots ?? 0} vaga${(unit.parking_spots ?? 0) > 1 ? "s" : ""}`],
+    ["🐾", `aceita pet: ${pets}`],
+  ];
 
   const flags = [
     unit.listing_count > 1 && `${unit.listing_count} anúncios · menor preço`,
@@ -31,7 +37,7 @@ export function Card({
   ].filter(Boolean);
 
   return (
-    <div className="relative overflow-hidden">
+    <div className="border-rule relative overflow-hidden md:rounded-lg md:border">
       {/* action hints behind the card while swiping */}
       {dx !== 0 && (
         <div
@@ -43,7 +49,7 @@ export function Card({
         </div>
       )}
       <article
-        className="border-rule flex gap-3 border-b bg-paper p-4"
+        className="border-rule flex h-full gap-3 border-b bg-paper p-4 md:border-b-0"
         style={{
           transform: `translateX(${dx}px)`,
           transition: start.current ? "none" : "transform 150ms",
@@ -83,7 +89,7 @@ export function Card({
             alt=""
             loading="lazy"
             draggable={false}
-            className="h-20 w-24 shrink-0 rounded object-cover"
+            className="h-24 w-24 shrink-0 rounded object-cover md:h-32 md:w-40"
           />
         )}
         <div className="min-w-0 flex-1">
@@ -104,7 +110,13 @@ export function Card({
           <div className="mt-2">
             <CostBar cheapest={unit.cheapest} />
           </div>
-          <p className="mt-2 truncate text-xs text-muted">{meta.join(" · ")}</p>
+          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted">
+            {details.map(([icon, text]) => (
+              <span key={text} className="truncate">
+                <span aria-hidden="true">{icon}</span> {text}
+              </span>
+            ))}
+          </div>
           {flags.length > 0 && (
             <p className="mt-1 truncate text-xs font-medium text-flag">{flags.join(" · ")}</p>
           )}

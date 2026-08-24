@@ -35,6 +35,11 @@ test("missing condo means partial confidence, not zero", () => {
   assert.equal(l.costConfidence, "partial");
 });
 
+test("daily-rate (temporada) listings are dropped", () => {
+  const daily = { ...RENTAL, rentalInfo: { period: "DAILY" } };
+  assert.equal(normalizeGlue(wrapper({ pricingInfos: [daily] })), null);
+});
+
 test("SALE-only or unpriced listings are dropped", () => {
   assert.equal(normalizeGlue(wrapper({ pricingInfos: [{ businessType: "SALE", price: "500000" }] })), null);
   assert.equal(normalizeGlue(wrapper({ pricingInfos: [] })), null);
