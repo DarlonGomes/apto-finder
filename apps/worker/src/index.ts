@@ -2,12 +2,13 @@ import { Hono } from "hono";
 import { neon } from "@neondatabase/serverless";
 
 type Bindings = {
-  DATABASE_URL: string;
+  DATABASE_URL?: string;
+  DATABASE_URL_POOLED?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-const db = (c: { env: Bindings }) => neon(c.env.DATABASE_URL);
+const db = (c: { env: Bindings }) => neon((c.env.DATABASE_URL ?? c.env.DATABASE_URL_POOLED)!);
 
 const fillThumb = (t: string | null | undefined, dim = "360x240"): string | null =>
   t
