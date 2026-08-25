@@ -2,9 +2,17 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type { Source } from "@apto/shared";
 import { fetchNeighborhoods, fetchUnits, type Filters } from "./api";
 
 const TOTAL_STEPS = [2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000, 6500, 7000, 8000];
+
+const SOURCES: [Source, string][] = [
+  ["vivareal", "VivaReal"],
+  ["olx", "OLX"],
+  ["zap", "ZAP"],
+  ["quintoandar", "QuintoAndar"],
+];
 
 function Select({
   label,
@@ -123,6 +131,29 @@ export function FilterSheet({
             <option value="any">qualquer</option>
             <option value="complete">só completo</option>
           </Select>
+        </div>
+
+        <p className="mt-4 text-sm font-semibold">Fonte</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {SOURCES.map(([value, label]) => {
+            const on = draft.sources.includes(value);
+            return (
+              <button
+                key={value}
+                onClick={() =>
+                  set(
+                    "sources",
+                    on ? draft.sources.filter((s) => s !== value) : [...draft.sources, value],
+                  )
+                }
+                className={`rounded-full border px-3 py-1.5 text-sm ${
+                  on ? "border-ink bg-ink text-paper" : "border-rule bg-paper text-ink"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
 
         <p className="mt-4 text-sm font-semibold">Bairros</p>

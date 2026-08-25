@@ -43,6 +43,14 @@ app.get("/api/units", async (c) => {
   if (q.parking_min) add("COALESCE(c.parking_spots, 0) >= ?", Number(q.parking_min));
   if (q.area_min) add("c.area_m2 >= ?", Number(q.area_min));
   if (q.neighborhoods) add("u.neighborhood = ANY(?)", q.neighborhoods.split(","));
+  if (q.sources) {
+    // Match our source column (quintoandar) or the Glue portals array (OLX/ZAP/VIVAREAL share one backend)
+    const list = q.sources.split(",");
+    params.push(list, list.map((s) => s.toUpperCase()));
+    where.push(
+      `(c.source = ANY($${params.length - 1}) OR c.raw->'listing'->'portals' ?| $${params.length})`,
+    );
+  }
   if (q.furnished) add("c.furnished = ANY(?)", q.furnished.split(","));
   if (q.cost_confidence === "complete") where.push("c.cost_confidence = 'complete'");
 

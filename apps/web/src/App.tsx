@@ -123,6 +123,7 @@ export default function App() {
       }`,
     filters.area_min != null && `${filters.area_min}m²+`,
     filters.pets === "required" && "pet confirmado",
+    filters.sources.length > 0 && filters.sources.join(", "),
     filters.cost_confidence === "complete" && "preço completo",
   ].filter(Boolean);
 

@@ -1,4 +1,4 @@
-import type { StatusExtra, UnitsResponse, UnitStatus } from "@apto/shared";
+import type { Source, StatusExtra, UnitsResponse, UnitStatus } from "@apto/shared";
 
 export interface Filters {
   total_min: number | null; // cents
@@ -11,6 +11,7 @@ export interface Filters {
   cost_confidence: "any" | "complete";
   sort: "total_asc" | "newest" | "price_per_m2" | "biggest_drop";
   status: "" | UnitStatus; // "" = all (server hides dismissed by default)
+  sources: Source[];
 }
 
 export const DEFAULT_FILTERS: Filters = {
@@ -24,6 +25,7 @@ export const DEFAULT_FILTERS: Filters = {
   cost_confidence: "any",
   sort: "total_asc",
   status: "",
+  sources: [],
 };
 
 export function filtersToParams(f: Filters): URLSearchParams {
@@ -38,6 +40,7 @@ export function filtersToParams(f: Filters): URLSearchParams {
   if (f.cost_confidence !== "any") p.set("cost_confidence", f.cost_confidence);
   if (f.sort !== "total_asc") p.set("sort", f.sort);
   if (f.status) p.set("status", f.status);
+  if (f.sources.length) p.set("sources", f.sources.join(","));
   return p;
 }
 
@@ -53,6 +56,7 @@ export function filtersFromParams(p: URLSearchParams): Filters {
     cost_confidence: (p.get("cost_confidence") as Filters["cost_confidence"]) ?? "any",
     sort: (p.get("sort") as Filters["sort"]) ?? "total_asc",
     status: (p.get("status") as Filters["status"]) ?? "",
+    sources: (p.get("sources")?.split(",").filter(Boolean) ?? []) as Source[],
   };
 }
 
