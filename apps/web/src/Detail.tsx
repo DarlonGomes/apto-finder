@@ -1,10 +1,13 @@
 // Unit detail (PRD 9.3): photo carousel, full cost breakdown, price history
 // sparkline, every offer with an outbound link. No contact form.
 
+import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type { StatusExtra, UnitStatus } from "@apto/shared";
 import type { DetailListing } from "./api";
 import { brl, fetchUnitDetail } from "./api";
 import { CostBar } from "./CostBar";
+import { StatusActions } from "./StatusActions";
 
 const SOURCE_LABELS: Record<string, string> = {
   vivareal: "VivaReal",
@@ -64,7 +67,82 @@ function Sparkline({
   );
 }
 
-export function Detail({ id, onClose }: { id: string; onClose: () => void }) {
+/** Scroll-snap strip. Touch swipes natively; mouse gets drag-to-scroll
+ *  (snap classes come off while dragging so scrollLeft wins, back on release). */
+function Carousel({ photos }: { photos: string[] }) {
+  const track = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x: number; left: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  // one photo is 5/6 of the track width; snap settles it on the nearest one
+  const page = (dir: 1 | -1) =>
+    track.current!.scrollBy({ left: dir * track.current!.clientWidth * (5 / 6), behavior: "smooth" });
+
+  return (
+    <div className="relative">
+      {photos.length > 1 &&
+        ([["‹", -1], ["›", 1]] as const).map(([glyph, dir]) => (
+          <button
+            key={glyph}
+            onClick={() => page(dir)}
+            aria-label={dir === 1 ? "próxima foto" : "foto anterior"}
+            className={`absolute top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-ink/50 text-lg text-paper md:flex ${
+              dir === 1 ? "right-2" : "left-2"
+            }`}
+          >
+            {glyph}
+          </button>
+        ))}
+      <div
+        ref={track}
+      className={`no-scrollbar flex gap-1 overflow-x-auto ${
+        dragging ? "cursor-grabbing" : "snap-x snap-mandatory cursor-grab"
+      }`}
+      onPointerDown={(e) => {
+        if (e.pointerType !== "mouse") return;
+        drag.current = { x: e.clientX, left: track.current!.scrollLeft };
+        setDragging(true);
+      }}
+      onPointerMove={(e) => {
+        const d = drag.current;
+        if (!d) return;
+        if (Math.abs(e.clientX - d.x) > 4)
+          (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+        track.current!.scrollLeft = d.left - (e.clientX - d.x);
+      }}
+      onPointerUp={() => {
+        drag.current = null;
+        setDragging(false);
+      }}
+      onPointerCancel={() => {
+        drag.current = null;
+        setDragging(false);
+      }}
+    >
+      {photos.map((p) => (
+        <img
+          key={p}
+          src={p}
+          alt=""
+          loading="lazy"
+          draggable={false}
+          className="h-64 w-5/6 shrink-0 snap-center select-none object-cover md:h-80"
+        />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function Detail({
+  id,
+  onClose,
+  onTriage,
+}: {
+  id: string;
+  onClose: () => void;
+  onTriage: (unitId: string, status: UnitStatus | null, extra?: StatusExtra) => void;
+}) {
   const q = useQuery({ queryKey: ["unit", id], queryFn: () => fetchUnitDetail(id) });
 
   const u = q.data;
@@ -97,27 +175,36 @@ export function Detail({ id, onClose }: { id: string; onClose: () => void }) {
 
       {u && cheapest && (
         <div className="mx-auto max-w-lg pb-8 md:max-w-3xl">
-          {photos.length > 0 && (
-            <div className="flex snap-x snap-mandatory gap-1 overflow-x-auto">
-              {photos.map((p) => (
-                <img
-                  key={p}
-                  src={p}
-                  alt=""
-                  loading="lazy"
-                  className="h-64 w-5/6 shrink-0 snap-center object-cover md:h-80"
-                />
-              ))}
-            </div>
-          )}
+          {photos.length > 0 && <Carousel photos={photos} />}
 
           <div className="space-y-6 px-4 pt-4">
-            <p className="text-sm text-muted">
-              {u.bedrooms ?? "?"} quartos · {cheapest.bathrooms ?? "?"} banheiros ·{" "}
-              {u.area_m2 ?? "?"} m² · {u.parking_spots ?? 0} vaga
-              {(u.parking_spots ?? 0) > 1 ? "s" : ""}
-              {cheapest.floor != null ? ` · ${cheapest.floor}º andar` : ""}
-            </p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
+              {(
+                [
+                  ["🛏️", `${u.bedrooms ?? "?"} quartos`],
+                  ["🛁", `${cheapest.bathrooms ?? "?"} banheiros`],
+                  ["📐", `${u.area_m2 ?? "?"} m²`],
+                  [
+                    "🚗",
+                    `${u.parking_spots ?? 0} vaga${(u.parking_spots ?? 0) > 1 ? "s" : ""}`,
+                  ],
+                  ...(cheapest.floor != null
+                    ? [["🏢", `${cheapest.floor}º andar`] as [string, string]]
+                    : []),
+                ] as [string, string][]
+              ).map(([icon, text]) => (
+                <span key={text}>
+                  <span aria-hidden="true">{icon}</span> {text}
+                </span>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              <StatusActions
+                status={u.status}
+                onTriage={(status, extra) => onTriage(u.id, status, extra)}
+              />
+            </div>
 
             <section>
               <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">

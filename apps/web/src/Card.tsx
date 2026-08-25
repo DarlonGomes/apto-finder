@@ -5,14 +5,9 @@ import { useRef, useState } from "react";
 import type { StatusExtra, UnitCard, UnitStatus } from "@apto/shared";
 import { brl } from "./api";
 import { CostBar } from "./CostBar";
+import { StatusActions } from "./StatusActions";
 
 const SWIPE_THRESHOLD = 80;
-
-const ACTIONS: [Exclude<UnitStatus, "dismissed">, string][] = [
-  ["liked", "❤️ Gostei"],
-  ["visit_booked", "📅 Visita"],
-  ["proposal_made", "📝 Proposta"],
-];
 
 // ponytail: two known household emails, prettify by substring
 const who = (email: string) => (email.includes("amanda") ? "Amanda" : "Darlon");
@@ -48,7 +43,6 @@ export function Card({
   onTriage: (unit: UnitCard, status: UnitStatus | null, extra?: StatusExtra) => void;
 }) {
   const [dx, setDx] = useState(0);
-  const [editing, setEditing] = useState<"visit_booked" | "proposal_made" | null>(null);
   const start = useRef<{ x: number; y: number; scrolling: boolean } | null>(null);
 
   const pets =
@@ -154,97 +148,26 @@ export function Card({
           {flags.length > 0 && (
             <p className="mt-1 truncate text-xs font-medium text-flag">{flags.join(" · ")}</p>
           )}
-          {editing ? (
-            <form
-              className="mt-2 flex flex-wrap items-center gap-1.5"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const f = new FormData(e.currentTarget);
-                if (editing === "visit_booked") {
-                  const v = f.get("visit_at") as string;
-                  onTriage(unit, "visit_booked", { visit_at: new Date(v).toISOString() });
-                } else {
-                  onTriage(unit, "proposal_made", {
-                    amount_cents: Math.round(Number(f.get("amount")) * 100),
-                    note: (f.get("note") as string) || null,
-                  });
-                }
-                setEditing(null);
-              }}
-            >
-              {editing === "visit_booked" ? (
-                <input
-                  name="visit_at"
-                  type="datetime-local"
-                  required
-                  className="border-rule rounded border bg-paper px-2 py-0.5 text-xs"
-                />
-              ) : (
-                <>
-                  <input
-                    name="amount"
-                    type="number"
-                    inputMode="decimal"
-                    min="1"
-                    step="0.01"
-                    required
-                    placeholder="R$"
-                    className="border-rule w-24 rounded border bg-paper px-2 py-0.5 text-xs"
-                  />
-                  <input
-                    name="note"
-                    type="text"
-                    placeholder="observação (opcional)"
-                    className="border-rule min-w-0 flex-1 rounded border bg-paper px-2 py-0.5 text-xs"
-                  />
-                </>
-              )}
-              <button type="submit" className="rounded bg-good px-2 py-0.5 text-xs font-medium text-white">
-                OK
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditing(null)}
-                className="px-1 text-xs text-muted"
-              >
-                ✕
-              </button>
-            </form>
-          ) : (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {ACTIONS.map(([status, label]) => (
-                <button
-                  key={status}
-                  onClick={() => {
-                    if (unit.status === status) onTriage(unit, null);
-                    else if (status === "liked") onTriage(unit, "liked");
-                    else setEditing(status);
-                  }}
-                  className={`whitespace-nowrap rounded border px-2 py-0.5 text-xs font-medium ${
-                    unit.status === status
-                      ? "border-good bg-good text-white"
-                      : "border-rule text-muted"
-                  }`}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <StatusActions
+              status={unit.status}
+              onTriage={(status, extra) => onTriage(unit, status, extra)}
+            />
+            <span className="ml-auto flex shrink-0 gap-1.5">
+              {openLinks(unit).map((l) => (
+                <a
+                  key={l.url}
+                  href={l.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  draggable={false}
+                  className="border-rule shrink-0 whitespace-nowrap rounded border px-2 py-0.5 text-xs font-medium text-muted"
                 >
-                  {label}
-                </button>
+                  {l.label} ↗
+                </a>
               ))}
-              <span className="ml-auto flex shrink-0 gap-1.5">
-                {openLinks(unit).map((l) => (
-                  <a
-                    key={l.url}
-                    href={l.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    draggable={false}
-                    className="border-rule shrink-0 whitespace-nowrap rounded border px-2 py-0.5 text-xs font-medium text-muted"
-                  >
-                    {l.label} ↗
-                  </a>
-                ))}
-              </span>
-            </div>
-          )}
+            </span>
+          </div>
           {unit.status && unit.status !== "dismissed" && (
             <p className="mt-1 truncate text-xs text-muted">
               {[

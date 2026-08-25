@@ -58,7 +58,7 @@ export default function App() {
     history.pushState(null, "", url);
     setDetailId(id);
   };
-  const [toast, setToast] = useState<{ unit: UnitCard; status: UnitStatus } | null>(null);
+  const [toast, setToast] = useState<{ unitId: string } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const qc = useQueryClient();
 
@@ -87,16 +87,16 @@ export default function App() {
 
   const triage = useMutation({
     mutationFn: ({
-      unit,
+      unitId,
       status,
       extra,
     }: {
-      unit: UnitCard;
+      unitId: string;
       status: UnitStatus | null;
       extra?: StatusExtra;
-    }) => putStatus(unit.id, status, extra),
+    }) => putStatus(unitId, status, extra),
     // Optimistic: dismissed leaves the list instantly, other statuses update in place
-    onMutate: async ({ unit, status, extra }) => {
+    onMutate: async ({ unitId, status, extra }) => {
       await qc.cancelQueries({ queryKey: ["units"] });
       qc.setQueryData(["units", filters], (data: any) =>
         data
@@ -106,9 +106,9 @@ export default function App() {
                 ...p,
                 units:
                   status === "dismissed"
-                    ? p.units.filter((u: UnitCard) => u.id !== unit.id)
+                    ? p.units.filter((u: UnitCard) => u.id !== unitId)
                     : p.units.map((u: UnitCard) =>
-                        u.id === unit.id
+                        u.id === unitId
                           ? {
                               ...u,
                               status,
@@ -123,13 +123,17 @@ export default function App() {
             }
           : data,
       );
+      qc.setQueryData(["unit", unitId], (d: any) => (d ? { ...d, status } : d));
       if (status === "dismissed") {
         clearTimeout(toastTimer.current);
-        setToast({ unit, status });
+        setToast({ unitId });
         toastTimer.current = setTimeout(() => setToast(null), 5000);
       }
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["units"] }),
+    onSettled: (_d, _e, { unitId }) => {
+      qc.invalidateQueries({ queryKey: ["units"] });
+      qc.invalidateQueries({ queryKey: ["unit", unitId] });
+    },
   });
 
   const all = units.data?.pages.flatMap((p) => p.units) ?? [];
@@ -206,7 +210,7 @@ export default function App() {
               key={u.id}
               unit={u}
               onOpen={openDetail}
-              onTriage={(unit, status, extra) => triage.mutate({ unit, status, extra })}
+              onTriage={(unit, status, extra) => triage.mutate({ unitId: unit.id, status, extra })}
             />
           ))}
         </div>
@@ -221,7 +225,13 @@ export default function App() {
         )}
       </main>
 
-      {detailId && <Detail id={detailId} onClose={() => history.back()} />}
+      {detailId && (
+        <Detail
+          id={detailId}
+          onClose={() => history.back()}
+          onTriage={(unitId, status, extra) => triage.mutate({ unitId, status, extra })}
+        />
+      )}
 
       {sheetOpen && (
         <FilterSheet
@@ -240,7 +250,7 @@ export default function App() {
           <button
             className="font-semibold underline"
             onClick={() => {
-              triage.mutate({ unit: toast.unit, status: null });
+              triage.mutate({ unitId: toast.unitId, status: null });
               clearTimeout(toastTimer.current);
               setToast(null);
             }}
