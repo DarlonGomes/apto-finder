@@ -84,6 +84,49 @@ export function putStatus(
   }).then(json);
 }
 
+export interface DetailListing {
+  id: string;
+  source: Source;
+  source_listing_id: string;
+  url: string;
+  rent_cents: number;
+  condo_cents: number | null;
+  iptu_monthly_cents: number | null;
+  insurance_cents: number | null;
+  service_fee_cents: number | null;
+  total_monthly_cents: number;
+  cost_confidence: "complete" | "partial";
+  bedrooms: number | null;
+  suites: number | null;
+  bathrooms: number | null;
+  parking_spots: number | null;
+  area_m2: number | null;
+  floor: number | null;
+  accepts_pets: boolean | null;
+  furnished: string | null;
+  advertiser: string | null;
+  first_seen_at: string;
+  last_seen_at: string;
+  delisted_at: string | null;
+  photos: string[];
+}
+
+export interface UnitDetail {
+  id: string;
+  neighborhood: string;
+  street: string | null;
+  bedrooms: number | null;
+  area_m2: number | null;
+  parking_spots: number | null;
+  status: UnitStatus | null;
+  listings: DetailListing[];
+  price_history: { listing_id: string; observed_at: string; total_monthly_cents: number }[];
+}
+
+export function fetchUnitDetail(id: string): Promise<UnitDetail> {
+  return fetch(`/api/units/${id}`).then((r) => json<UnitDetail>(r));
+}
+
 export function fetchNeighborhoods(): Promise<{ neighborhood: string; units: number }[]> {
   return fetch("/api/neighborhoods").then((r) => json(r));
 }
