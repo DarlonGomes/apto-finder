@@ -18,6 +18,7 @@ import {
 } from "./api";
 import { Card } from "./Card";
 import { Detail } from "./Detail";
+import { EmptyState } from "./EmptyState";
 import { FilterSheet } from "./FilterSheet";
 
 const SORT_LABELS: Record<Filters["sort"], string> = {
@@ -197,9 +198,7 @@ export default function App() {
         {units.isLoading && <p className="p-4 text-sm text-muted">Carregando…</p>}
         {units.isError && <p className="p-4 text-sm text-flag">API fora do ar.</p>}
         {units.isSuccess && all.length === 0 && (
-          <p className="p-4 text-sm text-muted">
-            Nenhum imóvel com esses filtros. Afrouxe o custo total ou os bairros.
-          </p>
+          <EmptyState filters={filters} onApply={setFilters} />
         )}
         <div className="md:grid md:grid-cols-2 md:gap-4 md:p-4">
           {all.map((u) => (
