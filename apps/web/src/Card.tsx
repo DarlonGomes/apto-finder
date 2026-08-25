@@ -17,6 +17,13 @@ const ACTIONS: [Exclude<UnitStatus, "dismissed">, string][] = [
 // ponytail: two known household emails, prettify by substring
 const who = (email: string) => (email.includes("amanda") ? "Amanda" : "Darlon");
 
+const SOURCE_LABELS: Record<string, string> = {
+  vivareal: "VivaReal",
+  zap: "ZAP",
+  olx: "OLX",
+  quintoandar: "QuintoAndar",
+};
+
 export function Card({
   unit,
   onTriage,
@@ -39,6 +46,7 @@ export function Card({
     ["📐", `${unit.area_m2 ?? "?"} m²`],
     ["🚗", `${unit.parking_spots ?? 0} vaga${(unit.parking_spots ?? 0) > 1 ? "s" : ""}`],
     ["🐾", `aceita pet: ${pets}`],
+    ["🏷️", SOURCE_LABELS[unit.cheapest.source] ?? unit.cheapest.source],
   ];
 
   const flags = [
@@ -206,6 +214,15 @@ export function Card({
                   {label}
                 </button>
               ))}
+              <a
+                href={unit.cheapest.url}
+                target="_blank"
+                rel="noreferrer"
+                draggable={false}
+                className="border-rule ml-auto shrink-0 rounded border px-2 py-0.5 text-xs font-medium text-muted"
+              >
+                abrir ↗
+              </a>
             </div>
           )}
           {unit.status && unit.status !== "dismissed" && (
