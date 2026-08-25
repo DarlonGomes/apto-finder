@@ -17,6 +17,7 @@ import {
   type Filters,
 } from "./api";
 import { Card } from "./Card";
+import { Detail } from "./Detail";
 import { FilterSheet } from "./FilterSheet";
 
 const SORT_LABELS: Record<Filters["sort"], string> = {
@@ -41,13 +42,31 @@ function initialFilters(): Filters {
 export default function App() {
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Detail overlay rides a `unit` URL param so back closes it and links share it.
+  const [detailId, setDetailId] = useState<string | null>(
+    () => new URLSearchParams(location.search).get("unit"),
+  );
+  useEffect(() => {
+    const onPop = () => setDetailId(new URLSearchParams(location.search).get("unit"));
+    addEventListener("popstate", onPop);
+    return () => removeEventListener("popstate", onPop);
+  }, []);
+  const openDetail = (id: string) => {
+    const url = new URL(location.href);
+    url.searchParams.set("unit", id);
+    history.pushState(null, "", url);
+    setDetailId(id);
+  };
   const [toast, setToast] = useState<{ unit: UnitCard; status: UnitStatus } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const qc = useQueryClient();
 
   // URL is the state (PRD 9.4)
   useEffect(() => {
-    const p = filtersToParams(filters).toString();
+    const params = filtersToParams(filters);
+    const unit = new URLSearchParams(location.search).get("unit");
+    if (unit) params.set("unit", unit);
+    const p = params.toString();
     history.replaceState(null, "", p ? `?${p}` : location.pathname);
     try {
       localStorage.setItem("filters", JSON.stringify(filters));
@@ -187,6 +206,7 @@ export default function App() {
             <Card
               key={u.id}
               unit={u}
+              onOpen={openDetail}
               onTriage={(unit, status, extra) => triage.mutate({ unit, status, extra })}
             />
           ))}
@@ -201,6 +221,8 @@ export default function App() {
           </button>
         )}
       </main>
+
+      {detailId && <Detail id={detailId} onClose={() => history.back()} />}
 
       {sheetOpen && (
         <FilterSheet

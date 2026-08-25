@@ -40,9 +40,11 @@ const SOURCE_LABELS: Record<string, string> = {
 
 export function Card({
   unit,
+  onOpen,
   onTriage,
 }: {
   unit: UnitCard;
+  onOpen: (id: string) => void;
   onTriage: (unit: UnitCard, status: UnitStatus | null, extra?: StatusExtra) => void;
 }) {
   const [dx, setDx] = useState(0);
@@ -122,20 +124,19 @@ export function Card({
             alt=""
             loading="lazy"
             draggable={false}
-            className="h-24 w-24 shrink-0 rounded object-cover md:h-32 md:w-40"
+            onClick={() => onOpen(unit.id)}
+            className="h-24 w-24 shrink-0 cursor-pointer rounded object-cover md:h-32 md:w-40"
           />
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
-            <a
-              href={unit.cheapest.url}
-              target="_blank"
-              rel="noreferrer"
-              className="truncate text-sm text-muted"
+            <button
+              onClick={() => onOpen(unit.id)}
+              className="truncate text-left text-sm text-muted"
             >
               {unit.neighborhood}
               {unit.street ? ` · ${unit.street}` : ""}
-            </a>
+            </button>
             <span className="tabular shrink-0 text-base font-semibold">
               {brl(unit.cheapest.total_monthly_cents)}
             </span>
