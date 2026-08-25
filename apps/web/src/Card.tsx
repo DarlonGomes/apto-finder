@@ -196,7 +196,7 @@ export function Card({
               </button>
             </form>
           ) : (
-            <div className="mt-2 flex items-center gap-1.5">
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {ACTIONS.map(([status, label]) => (
                 <button
                   key={status}
@@ -205,7 +205,7 @@ export function Card({
                     else if (status === "liked") onTriage(unit, "liked");
                     else setEditing(status);
                   }}
-                  className={`rounded border px-2 py-0.5 text-xs font-medium ${
+                  className={`whitespace-nowrap rounded border px-2 py-0.5 text-xs font-medium ${
                     unit.status === status
                       ? "border-good bg-good text-white"
                       : "border-rule text-muted"
@@ -219,7 +219,7 @@ export function Card({
                 target="_blank"
                 rel="noreferrer"
                 draggable={false}
-                className="border-rule ml-auto shrink-0 rounded border px-2 py-0.5 text-xs font-medium text-muted"
+                className="border-rule ml-auto shrink-0 whitespace-nowrap rounded border px-2 py-0.5 text-xs font-medium text-muted"
               >
                 abrir ↗
               </a>
