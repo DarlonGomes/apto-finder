@@ -2,7 +2,7 @@
 
 Rio rental aggregator for two users (Darlon + Amanda). Full spec: [PRD.md](../PRD.md). This file is the session pick-up point: read it, then continue from "Next up".
 
-Last updated: 2026-08-24.
+Last updated: 2026-08-25.
 
 ## Live
 
@@ -23,21 +23,26 @@ root `/`, build `pnpm install --frozen-lockfile && pnpm --filter web build`, dep
 | 0 | Glue API spike | DONE. Findings below. |
 | 1 | Schema + Glue collector | DONE. 219 listings live. |
 | 2 | Full Rio partitioned sweep | SKIPPED for now: fixed neighborhood list instead, all partitions far under the cap. |
-| 3 | QuintoAndar adapter | TODO |
-| 4 | Dedup pipeline | TODO. Until then each listing seeds its own unit (unit id = listing id). Glue's `sourceId` already clusters same-backend duplicates: use it before photo hashing. |
+| 3 | QuintoAndar adapter | DONE. 63 listings on first sweep. API facts below. |
+| 4 | Dedup pipeline | DONE (no photo downloads needed, see below). First run merged 8 clusters, all hand-checked true positives. Cards show one outbound link per source on deduped units. |
 | 5 | API on Workers | DONE (all endpoints, keyset cursor on total_asc/newest only). |
 | 6 | SPA v1 | DONE (list, cost bar + legend, filter sheet/modal, swipe triage, PWA). Status v2: append-only `status_events` (liked / visit_booked / proposal_made / dismissed) with actor from the `Cf-Access-Authenticated-User-Email` header; current status = latest event, undo deletes it. visit_booked carries `visit_at`, proposal_made carries `amount_cents` + optional `note` (inline forms on the card). Old `unit_status` table is orphaned, drop in a future migration after main deploys. |
 | 7 | Detail + price history | TODO (API endpoint exists, no screen). |
 | 8 | Daily digest | TODO |
 
-Also TODO: delisting maintenance (set `delisted_at` after 2 absent sweeps) via Worker cron trigger; PRD's 5-min Workers Cache API on /api/units (skipped, TanStack caches client-side).
+Dedup (apps/collector/src/dedupe.ts, runs at the end of each sweep): PRD 7.3 weights, but the photo signal is Glue media content-hash overlap. resizedimgs URLs are content-addressed (`vr-listing/{md5}/`), so identical uploads share hashes and NO images are ever downloaded, and no perceptual hashing exists. Same source + same raw `sourceId` (Glue's own cross-advertiser unit id, verified reliable) is an instant match. QuintoAndar photographs its own units, so QA/Glue photo matches are impossible even with pHash; cross-source pairs top out at 0.5 and never merge. Clusters re-point `unit_id` to the earliest-seen member's unit (stable across re-runs), statuses move with it, orphaned seed units are deleted. Dry-run spot-check: `node --env-file=../../.env --import tsx src/report-dedupe.ts` (read-only). No unmerge action yet; threshold is conservative.
+
+Delisting: DONE, at the end of each successful collector sweep (not the PRD's Worker cron, which could mass-delist while the collector is down). Listings in swept neighborhoods with `last_seen_at` older than 2h15m get `delisted_at`; reappearance clears it in the upsert. Skipped when a sweep saves nothing.
+
+Also TODO: PRD's 5-min Workers Cache API on /api/units (skipped, TanStack caches client-side).
 
 ## Sweep criteria (apps/collector/src/index.ts)
 
 2+ quartos, 2+ banheiros, 1+ vaga, total R$3.000-6.000 (Barra da Tijuca padded to 7.000, marked `ponytail:` validation-only), drops explicit no-pets and DAILY (temporada) listings. Neighborhoods (accents REQUIRED by the API): Tijuca, Grajaú, Vila Isabel, Andaraí, Barra da Tijuca, Botafogo, Gávea, Catete (stands in for Largo do Machado, which isn't in Glue's taxonomy), Flamengo, Humaitá, Lagoa. Override via `NEIGHBORHOODS` env.
 
-Hourly cron (user's machine, must be set manually):
-`0 * * * * cd ~/Projects/apto-finder && ~/.nvm/versions/node/v22.18.0/bin/node --env-file=.env --import tsx apps/collector/src/index.ts >> ~/apto-sweep.log 2>&1`
+QuintoAndar runs in the same sweep after Glue: one Rio-wide map-bounds fetch (its API has no neighborhood param), cheapest-first, stops paging past the largest cap; hits are matched to the neighborhood list accent-folded (its `neighbourhood` is free text: "Grajau", trailing spaces) and stored under our canonical spelling. "Largo do Machado" is in scope for QuintoAndar only.
+
+Hourly sweep runs via systemd user timer `apto-sweep.timer` (SET UP AND ACTIVE since 2026-08-25). Units in `~/.config/systemd/user/`, `Persistent=true` catches up after sleep, lingering enabled, logs append to `~/apto-sweep.log`. Note it must run with cwd `apps/collector` (tsx does not resolve from the repo root). Check: `systemctl --user list-timers apto-sweep.timer`.
 
 ## Glue API facts (spike findings, verified)
 
@@ -47,6 +52,16 @@ Hourly cron (user's machine, must be set manually):
 - Money: strings in whole reais. IPTU sometimes YEARLY (divide by 12 in normalize). `rentalInfo.period` DAILY = temporada, reject.
 - Listing URL: `https://www.vivareal.com.br/imovel/id-{id}/`. Images: fill template with `action=crop`, `dimension=WxH`, `description=foto`; the CDN 403s foreign referrers, SPA sends no referrer (meta tag).
 - One backend serves OLX+VIVAREAL+ZAP (`portals` field); we store source `vivareal`.
+
+## QuintoAndar API facts (spike findings 2026-08-25, verified)
+
+- `GET https://www.quintoandar.com.br/api/yellow-pages/v2/search`, plain browser UA via curl works. `return` (field list) is REQUIRED (400 without); unknown requested fields are silently dropped.
+- Geo is `map[bounds_north/south/east/west]` only, no neighborhood/city param. `neighbourhood` in results is free text (spelling drift), `city` present.
+- Filters: `min_bedrooms`, `min_bathrooms`, `parking_spaces` mean "N or more"; `house_type=Apartamento` exact; `business_context=RENT`. NO price filter (`cost_range` 500s). Extra params are rejected by name, which makes probing easy.
+- `sorting[criteria]=total_cost&sorting[order]=asc` + `page_size` (100 ok) + `offset`; ES-shaped response (`hits.hits[]._source`, `hits.total.value`). Deep offsets fine (ES 10k window, far above our volume).
+- Money in reais. `totalCost` is the bundled monthly total; `iptu` and `homeInsurance` itemized, `iptuPlusCondominium` is a lump (condo = lump - iptu); taxa de serviço is never itemized, it's the remainder to totalCost.
+- Pets amenity: `PODE_TER_ANIMAIS_DE_ESTIMACAO`. Furnished: `isFurnished` boolean.
+- Listing URL `https://www.quintoandar.com.br/imovel/{id}` (301s to slugged URL). Images `https://www.quintoandar.com.br/img/xlg/{imageList entry}`.
 
 ## Environment gotchas
 

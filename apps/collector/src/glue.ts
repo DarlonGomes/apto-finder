@@ -1,11 +1,8 @@
-// Glue API client (VivaReal/ZAP/OLX backend). Requests go through curl:
-// Node/undici's TLS fingerprint gets a Cloudflare 403; curl passes (spike finding).
+// Glue API client (VivaReal/ZAP/OLX backend). Requests go through curl (see curl.ts).
 // Measured limits: size max 30, from+size max 1500.
 
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { curlJson, sleep, UA } from "./curl.js";
 
-const exec = promisify(execFile);
 const BASE = "https://glue-api.vivareal.com/v2/listings";
 export const PAGE_SIZE = 30;
 export const WINDOW_MAX = 1500;
@@ -17,26 +14,8 @@ const HEADER_ARGS = [
   "-H", "accept-language: pt-BR,pt;q=0.9",
   "-H", "origin: https://www.vivareal.com.br",
   "-H", "referer: https://www.vivareal.com.br/",
-  "-H", "user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+  "-H", `user-agent: ${UA}`,
 ];
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function curlJson(url: string): Promise<{ status: number; json: any }> {
-  const { stdout } = await exec(
-    "curl",
-    ["-s", "-w", "\n%{http_code}", "--http2", ...HEADER_ARGS, url],
-    { maxBuffer: 64 * 1024 * 1024 },
-  );
-  const nl = stdout.lastIndexOf("\n");
-  let json: any = null;
-  try {
-    json = JSON.parse(stdout.slice(0, nl));
-  } catch {
-    /* error bodies can be HTML */
-  }
-  return { status: Number(stdout.slice(nl + 1)), json };
-}
 
 function buildUrl(neighborhood: string, from: number, extraParams: Record<string, string>): string {
   const p = new URLSearchParams({
@@ -71,7 +50,7 @@ export async function fetchPartition(
   let totalCount = 0;
   for (let from = 0; from + PAGE_SIZE <= WINDOW_MAX; from += PAGE_SIZE) {
     if (from > 0) await sleep(RATE_LIMIT_MS);
-    const { status, json } = await curlJson(buildUrl(neighborhood, from, extraParams));
+    const { status, json } = await curlJson(buildUrl(neighborhood, from, extraParams), HEADER_ARGS);
     if (status !== 200) throw new Error(`glue ${neighborhood} from=${from}: HTTP ${status}`);
     totalCount = json?.search?.totalCount ?? totalCount;
     const page: any[] = json?.search?.result?.listings ?? [];
