@@ -38,8 +38,7 @@ Also TODO: PRD's 5-min Workers Cache API on /api/units (skipped, TanStack caches
 
 2+ quartos, 2+ banheiros, 1+ vaga, total R$3.000-6.000 (Barra da Tijuca padded to 7.000, marked `ponytail:` validation-only), drops explicit no-pets and DAILY (temporada) listings. Neighborhoods (accents REQUIRED by the API): Tijuca, Grajaú, Vila Isabel, Andaraí, Barra da Tijuca, Botafogo, Gávea, Catete (stands in for Largo do Machado, which isn't in Glue's taxonomy), Flamengo, Humaitá, Lagoa. Override via `NEIGHBORHOODS` env.
 
-Hourly cron (user's machine, must be set manually):
-`0 * * * * cd ~/Projects/apto-finder && ~/.nvm/versions/node/v22.18.0/bin/node --env-file=.env --import tsx apps/collector/src/index.ts >> ~/apto-sweep.log 2>&1`
+Hourly sweep runs via systemd user timer `apto-sweep.timer` (SET UP AND ACTIVE since 2026-08-25). Units in `~/.config/systemd/user/`, `Persistent=true` catches up after sleep, lingering enabled, logs append to `~/apto-sweep.log`. Note it must run with cwd `apps/collector` (tsx does not resolve from the repo root). Check: `systemctl --user list-timers apto-sweep.timer`.
 
 ## Glue API facts (spike findings, verified)
 
