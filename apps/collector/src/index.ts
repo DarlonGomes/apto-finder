@@ -37,6 +37,7 @@ let saved = 0;
 let skipped = 0;
 let outOfBand = 0;
 let noPets = 0;
+let delisted = 0;
 
 try {
   for (const hood of NEIGHBORHOODS) {
@@ -76,11 +77,27 @@ try {
     }
     console.log(`${hood}: ${wrappers.length} fetched (totalCount ${totalCount})`);
   }
+
+  // PRD 7.4: absent from ~2 consecutive hourly sweeps -> delisted. Runs only
+  // after a fully successful sweep and only for the neighborhoods it covered,
+  // so a dead collector or partial run can never mass-delist. Reappearance
+  // clears delisted_at in the upsert.
+  // ponytail: timestamp heuristic instead of sweep ids; 2h15m ~= missed twice
+  if (saved > 0) {
+    const { rowCount } = await client.query(
+      `UPDATE listings SET delisted_at = now()
+       WHERE delisted_at IS NULL
+         AND neighborhood = ANY($1)
+         AND last_seen_at < now() - interval '2 hours 15 minutes'`,
+      [NEIGHBORHOODS],
+    );
+    delisted = rowCount ?? 0;
+  }
 } finally {
   await client.end();
 }
 
 console.log(
-  `sweep done: ${saved} saved, ${outOfBand} out of price band, ${noPets} no-pets, ${skipped} unpriceable, ` +
-    `${Math.round((Date.now() - started) / 1000)}s`,
+  `sweep done: ${saved} saved, ${delisted} delisted, ${outOfBand} out of price band, ${noPets} no-pets, ` +
+    `${skipped} unpriceable, ${Math.round((Date.now() - started) / 1000)}s`,
 );

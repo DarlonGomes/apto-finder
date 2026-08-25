@@ -30,7 +30,9 @@ root `/`, build `pnpm install --frozen-lockfile && pnpm --filter web build`, dep
 | 7 | Detail + price history | TODO (API endpoint exists, no screen). |
 | 8 | Daily digest | TODO |
 
-Also TODO: delisting maintenance (set `delisted_at` after 2 absent sweeps) via Worker cron trigger; PRD's 5-min Workers Cache API on /api/units (skipped, TanStack caches client-side).
+Delisting: DONE, at the end of each successful collector sweep (not the PRD's Worker cron, which could mass-delist while the collector is down). Listings in swept neighborhoods with `last_seen_at` older than 2h15m get `delisted_at`; reappearance clears it in the upsert. Skipped when a sweep saves nothing.
+
+Also TODO: PRD's 5-min Workers Cache API on /api/units (skipped, TanStack caches client-side).
 
 ## Sweep criteria (apps/collector/src/index.ts)
 
