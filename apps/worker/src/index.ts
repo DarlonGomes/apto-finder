@@ -105,13 +105,16 @@ app.get("/api/units", async (c) => {
              WHERE listing_id = c.id ORDER BY observed_at ASC LIMIT 1) f
        WHERE f.t <> c.total_monthly_cents) AS price_change_pct,
       c.raw->'medias'->0->>'url' AS thumb_template,
-      s.status,
+      s.status, s.actor AS status_actor,
       count(*) OVER ()::int AS total_matching
     FROM cheapest c
     JOIN listings l ON l.id = c.id
     JOIN units u ON u.id = c.unit_id
     JOIN agg a ON a.unit_id = c.unit_id
-    LEFT JOIN unit_status s ON s.unit_id = u.id
+    LEFT JOIN LATERAL (
+      SELECT status, actor FROM status_events
+      WHERE unit_id = u.id ORDER BY id DESC LIMIT 1
+    ) s ON true
     WHERE ${where.join(" AND ")}
     ORDER BY ${ORDERS[sort]}
     LIMIT $${params.length}`,
@@ -144,6 +147,7 @@ app.get("/api/units", async (c) => {
     price_change_pct: r.price_change_pct,
     thumbnail: fillThumb(r.thumb_template),
     status: r.status ?? null,
+    status_actor: r.status_actor ?? null,
   }));
 
   const last = rows[rows.length - 1];
@@ -159,8 +163,11 @@ app.get("/api/units/:id", async (c) => {
   const sql = db(c);
   const id = c.req.param("id");
   const [unit] = await sql`
-    SELECT u.*, s.status, s.note FROM units u
-    LEFT JOIN unit_status s ON s.unit_id = u.id
+    SELECT u.*, s.status, s.actor AS status_actor FROM units u
+    LEFT JOIN LATERAL (
+      SELECT status, actor FROM status_events
+      WHERE unit_id = u.id ORDER BY id DESC LIMIT 1
+    ) s ON true
     WHERE u.id = ${id}`;
   if (!unit) return c.json({ error: "not found" }, 404);
 
@@ -192,22 +199,22 @@ app.get("/api/units/:id", async (c) => {
   });
 });
 
-const STATUSES = ["shortlisted", "dismissed", "contacted", "visited"];
+const STATUSES = ["liked", "visit_booked", "proposal_made", "dismissed"];
 
 app.put("/api/units/:id/status", async (c) => {
   const sql = db(c);
   const id = c.req.param("id");
-  const body = await c.req.json<{ status: string | null; note?: string }>();
+  const actor = c.req.header("cf-access-authenticated-user-email") ?? null;
+  const body = await c.req.json<{ status: string | null }>();
   if (body.status === null) {
-    await sql`DELETE FROM unit_status WHERE unit_id = ${id}`;
+    // undo: drop the latest event; the previous one (if any) becomes current again
+    await sql`DELETE FROM status_events
+      WHERE id = (SELECT max(id) FROM status_events WHERE unit_id = ${id})`;
     return c.json({ ok: true });
   }
   if (!STATUSES.includes(body.status)) return c.json({ error: "bad status" }, 400);
-  await sql`
-    INSERT INTO unit_status (unit_id, status, note, updated_at)
-    VALUES (${id}, ${body.status}, ${body.note ?? null}, now())
-    ON CONFLICT (unit_id) DO UPDATE
-    SET status = EXCLUDED.status, note = EXCLUDED.note, updated_at = now()`;
+  await sql`INSERT INTO status_events (unit_id, status, actor)
+    VALUES (${id}, ${body.status}, ${actor})`;
   return c.json({ ok: true });
 });
 

@@ -26,7 +26,7 @@ root `/`, build `pnpm install --frozen-lockfile && pnpm --filter web build`, dep
 | 3 | QuintoAndar adapter | TODO |
 | 4 | Dedup pipeline | TODO. Until then each listing seeds its own unit (unit id = listing id). Glue's `sourceId` already clusters same-backend duplicates: use it before photo hashing. |
 | 5 | API on Workers | DONE (all endpoints, keyset cursor on total_asc/newest only). |
-| 6 | SPA v1 | DONE (list, cost bar + legend, filter sheet/modal, swipe triage, PWA). |
+| 6 | SPA v1 | DONE (list, cost bar + legend, filter sheet/modal, swipe triage, PWA). Status v2: append-only `status_events` (liked / visit_booked / proposal_made / dismissed) with actor from the `Cf-Access-Authenticated-User-Email` header; current status = latest event, undo deletes it. Old `unit_status` table is orphaned, drop in a future migration after main deploys. |
 | 7 | Detail + price history | TODO (API endpoint exists, no screen). |
 | 8 | Daily digest | TODO |
 

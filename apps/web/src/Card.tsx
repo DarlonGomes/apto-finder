@@ -1,18 +1,28 @@
-// One unit card with swipe triage: left dismisses, right shortlists (PRD 9.3).
+// One unit card. Swipe left dismisses, swipe right likes; explicit CTAs
+// track the pipeline: liked -> visit booked -> proposal made.
 
 import { useRef, useState } from "react";
-import type { UnitCard } from "@apto/shared";
+import type { UnitCard, UnitStatus } from "@apto/shared";
 import { brl } from "./api";
 import { CostBar } from "./CostBar";
 
 const SWIPE_THRESHOLD = 80;
+
+const ACTIONS: [UnitStatus, string][] = [
+  ["liked", "❤️ Gostei"],
+  ["visit_booked", "📅 Visita"],
+  ["proposal_made", "📝 Proposta"],
+];
+
+// ponytail: two known household emails, prettify by substring
+const who = (email: string) => (email.includes("amanda") ? "Amanda" : "Darlon");
 
 export function Card({
   unit,
   onTriage,
 }: {
   unit: UnitCard;
-  onTriage: (unit: UnitCard, status: "dismissed" | "shortlisted") => void;
+  onTriage: (unit: UnitCard, status: UnitStatus | null) => void;
 }) {
   const [dx, setDx] = useState(0);
   const start = useRef<{ x: number; y: number; scrolling: boolean } | null>(null);
@@ -45,7 +55,7 @@ export function Card({
             dx > 0 ? "justify-start bg-good" : "justify-end bg-flag"
           }`}
         >
-          {dx > 0 ? "shortlist" : "descartar"}
+          {dx > 0 ? "❤️ gostei" : "descartar"}
         </div>
       )}
       <article
@@ -76,7 +86,7 @@ export function Card({
           start.current = null;
           setDx(0);
           if (final <= -SWIPE_THRESHOLD) onTriage(unit, "dismissed");
-          else if (final >= SWIPE_THRESHOLD) onTriage(unit, "shortlisted");
+          else if (final >= SWIPE_THRESHOLD) onTriage(unit, "liked");
         }}
         onPointerCancel={() => {
           start.current = null;
@@ -120,9 +130,24 @@ export function Card({
           {flags.length > 0 && (
             <p className="mt-1 truncate text-xs font-medium text-flag">{flags.join(" · ")}</p>
           )}
-          {unit.status && (
-            <p className="mt-1 text-xs font-medium text-good">{unit.status}</p>
-          )}
+          <div className="mt-2 flex items-center gap-1.5">
+            {ACTIONS.map(([status, label]) => (
+              <button
+                key={status}
+                onClick={() => onTriage(unit, unit.status === status ? null : status)}
+                className={`rounded border px-2 py-0.5 text-xs font-medium ${
+                  unit.status === status
+                    ? "border-good bg-good text-white"
+                    : "border-rule text-muted"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+            {unit.status && unit.status !== "dismissed" && unit.status_actor && (
+              <span className="truncate text-xs text-muted">{who(unit.status_actor)}</span>
+            )}
+          </div>
         </div>
       </article>
     </div>

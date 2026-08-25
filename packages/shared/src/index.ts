@@ -3,7 +3,7 @@
 
 export type Source = "vivareal" | "zap" | "olx" | "quintoandar";
 export type CostConfidence = "complete" | "partial";
-export type UnitStatus = "shortlisted" | "dismissed" | "contacted" | "visited";
+export type UnitStatus = "liked" | "visit_booked" | "proposal_made" | "dismissed";
 export type Furnished = "none" | "partial" | "full";
 export type PetsEvidence = "amenity" | "description";
 
@@ -69,6 +69,7 @@ export interface UnitCard {
   price_change_pct: number | null;
   thumbnail: string | null;
   status: UnitStatus | null;
+  status_actor: string | null; // Access email of whoever set the current status
 }
 
 export interface UnitsResponse {

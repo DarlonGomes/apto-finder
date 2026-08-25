@@ -68,21 +68,26 @@ export default function App() {
   const triage = useMutation({
     mutationFn: ({ unit, status }: { unit: UnitCard; status: UnitStatus | null }) =>
       putStatus(unit.id, status),
-    // Optimistic: the card leaves the list instantly (PRD: swiping must feel instant)
+    // Optimistic: dismissed leaves the list instantly, other statuses update in place
     onMutate: async ({ unit, status }) => {
       await qc.cancelQueries({ queryKey: ["units"] });
       qc.setQueryData(["units", filters], (data: any) =>
-        data && status
+        data
           ? {
               ...data,
               pages: data.pages.map((p: any) => ({
                 ...p,
-                units: p.units.filter((u: UnitCard) => u.id !== unit.id),
+                units:
+                  status === "dismissed"
+                    ? p.units.filter((u: UnitCard) => u.id !== unit.id)
+                    : p.units.map((u: UnitCard) =>
+                        u.id === unit.id ? { ...u, status, status_actor: null } : u,
+                      ),
               })),
             }
           : data,
       );
-      if (status === "dismissed" || status === "shortlisted") {
+      if (status === "dismissed") {
         clearTimeout(toastTimer.current);
         setToast({ unit, status });
         toastTimer.current = setTimeout(() => setToast(null), 5000);
@@ -180,7 +185,7 @@ export default function App() {
 
       {toast && (
         <div className="fixed bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-lg bg-ink px-4 py-2.5 text-sm text-paper shadow-lg">
-          <span>{toast.status === "dismissed" ? "Descartado" : "Shortlist"}</span>
+          <span>Descartado</span>
           <button
             className="font-semibold underline"
             onClick={() => {
