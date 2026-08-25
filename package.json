@@ -9,6 +9,8 @@
     "dev:web": "pnpm --filter web dev",
     "dev:worker": "pnpm --filter worker dev",
     "dev:collector": "pnpm --filter collector dev",
+    "sweep": "pnpm --filter collector sweep",
+    "migrate": "pnpm --filter collector migrate",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "deploy": "pnpm --filter web build && pnpm --filter worker deploy"
