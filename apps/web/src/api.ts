@@ -10,6 +10,7 @@ export interface Filters {
   neighborhoods: string[];
   cost_confidence: "any" | "complete";
   sort: "total_asc" | "newest" | "price_per_m2" | "biggest_drop";
+  status: "" | UnitStatus; // "" = all (server hides dismissed by default)
 }
 
 export const DEFAULT_FILTERS: Filters = {
@@ -22,6 +23,7 @@ export const DEFAULT_FILTERS: Filters = {
   neighborhoods: [],
   cost_confidence: "any",
   sort: "total_asc",
+  status: "",
 };
 
 export function filtersToParams(f: Filters): URLSearchParams {
@@ -35,6 +37,7 @@ export function filtersToParams(f: Filters): URLSearchParams {
   if (f.neighborhoods.length) p.set("neighborhoods", f.neighborhoods.join(","));
   if (f.cost_confidence !== "any") p.set("cost_confidence", f.cost_confidence);
   if (f.sort !== "total_asc") p.set("sort", f.sort);
+  if (f.status) p.set("status", f.status);
   return p;
 }
 
@@ -49,6 +52,7 @@ export function filtersFromParams(p: URLSearchParams): Filters {
     neighborhoods: p.get("neighborhoods")?.split(",").filter(Boolean) ?? [],
     cost_confidence: (p.get("cost_confidence") as Filters["cost_confidence"]) ?? "any",
     sort: (p.get("sort") as Filters["sort"]) ?? "total_asc",
+    status: (p.get("status") as Filters["status"]) ?? "",
   };
 }
 

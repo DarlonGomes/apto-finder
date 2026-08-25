@@ -135,6 +135,19 @@ export default function App() {
           </span>
           <div className="flex items-center gap-2">
             <select
+              value={filters.status}
+              onChange={(e) =>
+                setFilters({ ...filters, status: e.target.value as Filters["status"] })
+              }
+              className="border-rule rounded border bg-paper px-2 py-1 text-xs"
+            >
+              <option value="">todos</option>
+              <option value="liked">❤️ gostei</option>
+              <option value="visit_booked">📅 visita</option>
+              <option value="proposal_made">📝 proposta</option>
+              <option value="dismissed">descartados</option>
+            </select>
+            <select
               value={filters.sort}
               onChange={(e) => setFilters({ ...filters, sort: e.target.value as Filters["sort"] })}
               className="border-rule rounded border bg-paper px-2 py-1 text-xs"
