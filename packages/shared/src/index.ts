@@ -70,6 +70,16 @@ export interface UnitCard {
   thumbnail: string | null;
   status: UnitStatus | null;
   status_actor: string | null; // Access email of whoever set the current status
+  status_visit_at: string | null; // visit_booked: scheduled date/time (ISO)
+  status_amount_cents: number | null; // proposal_made: offer in integer BRL cents
+  status_note: string | null; // proposal_made: optional context
+}
+
+/** Extra payload for PUT /api/units/:id/status, per status. */
+export interface StatusExtra {
+  visit_at?: string | null;
+  amount_cents?: number | null;
+  note?: string | null;
 }
 
 export interface UnitsResponse {

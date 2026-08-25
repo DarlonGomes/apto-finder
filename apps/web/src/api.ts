@@ -1,4 +1,4 @@
-import type { UnitsResponse, UnitStatus } from "@apto/shared";
+import type { StatusExtra, UnitsResponse, UnitStatus } from "@apto/shared";
 
 export interface Filters {
   total_min: number | null; // cents
@@ -64,11 +64,15 @@ export function fetchUnits(f: Filters, cursor?: string | null, limit = 30): Prom
   return fetch(`/api/units?${p}`).then((r) => json<UnitsResponse>(r));
 }
 
-export function putStatus(unitId: string, status: UnitStatus | null): Promise<unknown> {
+export function putStatus(
+  unitId: string,
+  status: UnitStatus | null,
+  extra?: StatusExtra,
+): Promise<unknown> {
   return fetch(`/api/units/${unitId}/status`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, ...extra }),
   }).then(json);
 }
 

@@ -6,7 +6,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import type { UnitCard, UnitStatus } from "@apto/shared";
+import type { StatusExtra, UnitCard, UnitStatus } from "@apto/shared";
 import {
   DEFAULT_FILTERS,
   fetchMeta,
@@ -66,10 +66,17 @@ export default function App() {
   const meta = useQuery({ queryKey: ["meta"], queryFn: fetchMeta, staleTime: 60_000 });
 
   const triage = useMutation({
-    mutationFn: ({ unit, status }: { unit: UnitCard; status: UnitStatus | null }) =>
-      putStatus(unit.id, status),
+    mutationFn: ({
+      unit,
+      status,
+      extra,
+    }: {
+      unit: UnitCard;
+      status: UnitStatus | null;
+      extra?: StatusExtra;
+    }) => putStatus(unit.id, status, extra),
     // Optimistic: dismissed leaves the list instantly, other statuses update in place
-    onMutate: async ({ unit, status }) => {
+    onMutate: async ({ unit, status, extra }) => {
       await qc.cancelQueries({ queryKey: ["units"] });
       qc.setQueryData(["units", filters], (data: any) =>
         data
@@ -81,7 +88,16 @@ export default function App() {
                   status === "dismissed"
                     ? p.units.filter((u: UnitCard) => u.id !== unit.id)
                     : p.units.map((u: UnitCard) =>
-                        u.id === unit.id ? { ...u, status, status_actor: null } : u,
+                        u.id === unit.id
+                          ? {
+                              ...u,
+                              status,
+                              status_actor: null,
+                              status_visit_at: extra?.visit_at ?? null,
+                              status_amount_cents: extra?.amount_cents ?? null,
+                              status_note: extra?.note ?? null,
+                            }
+                          : u,
                       ),
               })),
             }
@@ -157,7 +173,7 @@ export default function App() {
             <Card
               key={u.id}
               unit={u}
-              onTriage={(unit, status) => triage.mutate({ unit, status })}
+              onTriage={(unit, status, extra) => triage.mutate({ unit, status, extra })}
             />
           ))}
         </div>

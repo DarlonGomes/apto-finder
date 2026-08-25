@@ -105,14 +105,15 @@ app.get("/api/units", async (c) => {
              WHERE listing_id = c.id ORDER BY observed_at ASC LIMIT 1) f
        WHERE f.t <> c.total_monthly_cents) AS price_change_pct,
       c.raw->'medias'->0->>'url' AS thumb_template,
-      s.status, s.actor AS status_actor,
+      s.status, s.actor AS status_actor, s.visit_at AS status_visit_at,
+      s.amount_cents AS status_amount_cents, s.note AS status_note,
       count(*) OVER ()::int AS total_matching
     FROM cheapest c
     JOIN listings l ON l.id = c.id
     JOIN units u ON u.id = c.unit_id
     JOIN agg a ON a.unit_id = c.unit_id
     LEFT JOIN LATERAL (
-      SELECT status, actor FROM status_events
+      SELECT status, actor, visit_at, amount_cents, note FROM status_events
       WHERE unit_id = u.id ORDER BY id DESC LIMIT 1
     ) s ON true
     WHERE ${where.join(" AND ")}
@@ -148,6 +149,9 @@ app.get("/api/units", async (c) => {
     thumbnail: fillThumb(r.thumb_template),
     status: r.status ?? null,
     status_actor: r.status_actor ?? null,
+    status_visit_at: r.status_visit_at ?? null,
+    status_amount_cents: r.status_amount_cents ?? null,
+    status_note: r.status_note ?? null,
   }));
 
   const last = rows[rows.length - 1];
@@ -163,9 +167,11 @@ app.get("/api/units/:id", async (c) => {
   const sql = db(c);
   const id = c.req.param("id");
   const [unit] = await sql`
-    SELECT u.*, s.status, s.actor AS status_actor FROM units u
+    SELECT u.*, s.status, s.actor AS status_actor, s.visit_at AS status_visit_at,
+      s.amount_cents AS status_amount_cents, s.note AS status_note
+    FROM units u
     LEFT JOIN LATERAL (
-      SELECT status, actor FROM status_events
+      SELECT status, actor, visit_at, amount_cents, note FROM status_events
       WHERE unit_id = u.id ORDER BY id DESC LIMIT 1
     ) s ON true
     WHERE u.id = ${id}`;
@@ -205,7 +211,12 @@ app.put("/api/units/:id/status", async (c) => {
   const sql = db(c);
   const id = c.req.param("id");
   const actor = c.req.header("cf-access-authenticated-user-email") ?? null;
-  const body = await c.req.json<{ status: string | null }>();
+  const body = await c.req.json<{
+    status: string | null;
+    visit_at?: string | null;
+    amount_cents?: number | null;
+    note?: string | null;
+  }>();
   if (body.status === null) {
     // undo: drop the latest event; the previous one (if any) becomes current again
     await sql`DELETE FROM status_events
@@ -213,8 +224,16 @@ app.put("/api/units/:id/status", async (c) => {
     return c.json({ ok: true });
   }
   if (!STATUSES.includes(body.status)) return c.json({ error: "bad status" }, 400);
-  await sql`INSERT INTO status_events (unit_id, status, actor)
-    VALUES (${id}, ${body.status}, ${actor})`;
+  if (body.status === "visit_booked" && !Date.parse(body.visit_at ?? ""))
+    return c.json({ error: "visit_at required" }, 400);
+  if (
+    body.status === "proposal_made" &&
+    (!Number.isInteger(body.amount_cents) || (body.amount_cents as number) <= 0)
+  )
+    return c.json({ error: "amount_cents required" }, 400);
+  await sql`INSERT INTO status_events (unit_id, status, actor, visit_at, amount_cents, note)
+    VALUES (${id}, ${body.status}, ${actor}, ${body.visit_at ?? null},
+            ${body.amount_cents ?? null}, ${body.note ?? null})`;
   return c.json({ ok: true });
 });
 

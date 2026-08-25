@@ -2,13 +2,13 @@
 // track the pipeline: liked -> visit booked -> proposal made.
 
 import { useRef, useState } from "react";
-import type { UnitCard, UnitStatus } from "@apto/shared";
+import type { StatusExtra, UnitCard, UnitStatus } from "@apto/shared";
 import { brl } from "./api";
 import { CostBar } from "./CostBar";
 
 const SWIPE_THRESHOLD = 80;
 
-const ACTIONS: [UnitStatus, string][] = [
+const ACTIONS: [Exclude<UnitStatus, "dismissed">, string][] = [
   ["liked", "❤️ Gostei"],
   ["visit_booked", "📅 Visita"],
   ["proposal_made", "📝 Proposta"],
@@ -22,9 +22,10 @@ export function Card({
   onTriage,
 }: {
   unit: UnitCard;
-  onTriage: (unit: UnitCard, status: UnitStatus | null) => void;
+  onTriage: (unit: UnitCard, status: UnitStatus | null, extra?: StatusExtra) => void;
 }) {
   const [dx, setDx] = useState(0);
+  const [editing, setEditing] = useState<"visit_booked" | "proposal_made" | null>(null);
   const start = useRef<{ x: number; y: number; scrolling: boolean } | null>(null);
 
   const pets =
@@ -130,24 +131,101 @@ export function Card({
           {flags.length > 0 && (
             <p className="mt-1 truncate text-xs font-medium text-flag">{flags.join(" · ")}</p>
           )}
-          <div className="mt-2 flex items-center gap-1.5">
-            {ACTIONS.map(([status, label]) => (
-              <button
-                key={status}
-                onClick={() => onTriage(unit, unit.status === status ? null : status)}
-                className={`rounded border px-2 py-0.5 text-xs font-medium ${
-                  unit.status === status
-                    ? "border-good bg-good text-white"
-                    : "border-rule text-muted"
-                }`}
-              >
-                {label}
+          {editing ? (
+            <form
+              className="mt-2 flex flex-wrap items-center gap-1.5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const f = new FormData(e.currentTarget);
+                if (editing === "visit_booked") {
+                  const v = f.get("visit_at") as string;
+                  onTriage(unit, "visit_booked", { visit_at: new Date(v).toISOString() });
+                } else {
+                  onTriage(unit, "proposal_made", {
+                    amount_cents: Math.round(Number(f.get("amount")) * 100),
+                    note: (f.get("note") as string) || null,
+                  });
+                }
+                setEditing(null);
+              }}
+            >
+              {editing === "visit_booked" ? (
+                <input
+                  name="visit_at"
+                  type="datetime-local"
+                  required
+                  className="border-rule rounded border bg-paper px-2 py-0.5 text-xs"
+                />
+              ) : (
+                <>
+                  <input
+                    name="amount"
+                    type="number"
+                    inputMode="decimal"
+                    min="1"
+                    step="0.01"
+                    required
+                    placeholder="R$"
+                    className="border-rule w-24 rounded border bg-paper px-2 py-0.5 text-xs"
+                  />
+                  <input
+                    name="note"
+                    type="text"
+                    placeholder="observação (opcional)"
+                    className="border-rule min-w-0 flex-1 rounded border bg-paper px-2 py-0.5 text-xs"
+                  />
+                </>
+              )}
+              <button type="submit" className="rounded bg-good px-2 py-0.5 text-xs font-medium text-white">
+                OK
               </button>
-            ))}
-            {unit.status && unit.status !== "dismissed" && unit.status_actor && (
-              <span className="truncate text-xs text-muted">{who(unit.status_actor)}</span>
-            )}
-          </div>
+              <button
+                type="button"
+                onClick={() => setEditing(null)}
+                className="px-1 text-xs text-muted"
+              >
+                ✕
+              </button>
+            </form>
+          ) : (
+            <div className="mt-2 flex items-center gap-1.5">
+              {ACTIONS.map(([status, label]) => (
+                <button
+                  key={status}
+                  onClick={() => {
+                    if (unit.status === status) onTriage(unit, null);
+                    else if (status === "liked") onTriage(unit, "liked");
+                    else setEditing(status);
+                  }}
+                  className={`rounded border px-2 py-0.5 text-xs font-medium ${
+                    unit.status === status
+                      ? "border-good bg-good text-white"
+                      : "border-rule text-muted"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {unit.status && unit.status !== "dismissed" && (
+            <p className="mt-1 truncate text-xs text-muted">
+              {[
+                unit.status_visit_at &&
+                  new Date(unit.status_visit_at).toLocaleString("pt-BR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
+                unit.status_amount_cents != null && brl(unit.status_amount_cents),
+                unit.status_note,
+                unit.status_actor && who(unit.status_actor),
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
         </div>
       </article>
     </div>
