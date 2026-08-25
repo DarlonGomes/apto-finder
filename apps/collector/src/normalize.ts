@@ -27,6 +27,65 @@ function petsFromText(text: string): { accepts: boolean; evidence: PetsEvidence 
   return null;
 }
 
+/** QuintoAndar search hit -> NormalizedListing. Money is whole reais.
+ *  Returns null for hits we can't price. */
+export function normalizeQuintoAndar(h: any): NormalizedListing | null {
+  const rentCents = centsFromReais(h?.rent);
+  if (h?.id == null || !rentCents) return null;
+
+  const totalCents = centsFromReais(h.totalCost);
+  const iptuMonthlyCents = centsFromReais(h.iptu);
+  const lumpCents = centsFromReais(h.iptuPlusCondominium);
+  // ponytail: when iptu isn't itemized the whole lump lands in condo; the total stays right
+  const condoCents = lumpCents == null ? null : Math.max(0, lumpCents - (iptuMonthlyCents ?? 0));
+  const insuranceCents = centsFromReais(h.homeInsurance);
+  // Taxa de serviço is never itemized: it's whatever remains of QuintoAndar's
+  // own totalCost. Only derivable when the condo lump is known, else the
+  // remainder would just be the missing condo wearing a different name.
+  const serviceFeeCents =
+    totalCents == null || lumpCents == null
+      ? null
+      : Math.max(0, totalCents - rentCents - lumpCents - (insuranceCents ?? 0));
+
+  const amenities: string[] = h.amenities ?? [];
+
+  return {
+    source: "quintoandar",
+    sourceListingId: String(h.id),
+    url: `https://www.quintoandar.com.br/imovel/${h.id}`,
+
+    rentCents,
+    condoCents,
+    iptuMonthlyCents,
+    insuranceCents,
+    serviceFeeCents,
+    costConfidence: lumpCents != null ? "complete" : "partial",
+
+    bedrooms: first(h.bedrooms),
+    suites: null, // not exposed by the search API
+    bathrooms: first(h.bathrooms),
+    parkingSpots: first(h.parkingSpaces),
+    areaM2: first(h.area),
+    floor: null,
+
+    neighborhood: h.neighbourhood ?? null,
+    street: h.address ?? null,
+    lat: h.location?.lat ?? null,
+    lng: h.location?.lon ?? null,
+
+    acceptsPets: amenities.includes("PODE_TER_ANIMAIS_DE_ESTIMACAO") ? true : null,
+    petsEvidence: amenities.includes("PODE_TER_ANIMAIS_DE_ESTIMACAO") ? "amenity" : null,
+    furnished: h.isFurnished === true ? "full" : h.isFurnished === false ? "none" : null,
+
+    photoUrls: (h.imageList ?? [])
+      .slice(0, 5)
+      .map((f: string) => `https://www.quintoandar.com.br/img/xlg/${f}`),
+    advertiser: "QuintoAndar",
+
+    raw: h,
+  };
+}
+
 /** Returns null for wrappers we can't price (no RENTAL entry or no rent). */
 export function normalizeGlue(wrapper: any): NormalizedListing | null {
   const l = wrapper?.listing;
