@@ -64,6 +64,8 @@ export interface UnitCard {
     url: string;
   };
   listing_count: number;
+  /** Every active offer for the unit, cheapest first. */
+  links: { source: Source; url: string; total_monthly_cents: number }[];
   price_spread_cents: number;
   days_listed: number;
   price_change_pct: number | null;

@@ -7,6 +7,7 @@ import { fetchPartition, WINDOW_MAX } from "./glue.js";
 import { fetchQuintoAndar } from "./quintoandar.js";
 import { normalizeGlue, normalizeQuintoAndar } from "./normalize.js";
 import { connect, saveListing } from "./db.js";
+import { dedupe } from "./dedupe.js";
 
 // Search criteria. Glue's bedrooms/bathrooms/parkingSpaces are exact-match
 // lists, so "2 or more" is spelled "2,3,...". Names need accents (Grajau -> 0
@@ -125,6 +126,9 @@ try {
     );
     delisted = rowCount ?? 0;
   }
+
+  // PRD 7.3: cluster duplicate listings into one unit, after every collection.
+  await dedupe(client);
 } finally {
   await client.end();
 }

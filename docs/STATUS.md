@@ -24,11 +24,13 @@ root `/`, build `pnpm install --frozen-lockfile && pnpm --filter web build`, dep
 | 1 | Schema + Glue collector | DONE. 219 listings live. |
 | 2 | Full Rio partitioned sweep | SKIPPED for now: fixed neighborhood list instead, all partitions far under the cap. |
 | 3 | QuintoAndar adapter | DONE. 63 listings on first sweep. API facts below. |
-| 4 | Dedup pipeline | TODO. Until then each listing seeds its own unit (unit id = listing id). Glue's `sourceId` already clusters same-backend duplicates: use it before photo hashing. |
+| 4 | Dedup pipeline | DONE (no photo downloads needed, see below). First run merged 8 clusters, all hand-checked true positives. Cards show one outbound link per source on deduped units. |
 | 5 | API on Workers | DONE (all endpoints, keyset cursor on total_asc/newest only). |
 | 6 | SPA v1 | DONE (list, cost bar + legend, filter sheet/modal, swipe triage, PWA). Status v2: append-only `status_events` (liked / visit_booked / proposal_made / dismissed) with actor from the `Cf-Access-Authenticated-User-Email` header; current status = latest event, undo deletes it. visit_booked carries `visit_at`, proposal_made carries `amount_cents` + optional `note` (inline forms on the card). Old `unit_status` table is orphaned, drop in a future migration after main deploys. |
 | 7 | Detail + price history | TODO (API endpoint exists, no screen). |
 | 8 | Daily digest | TODO |
+
+Dedup (apps/collector/src/dedupe.ts, runs at the end of each sweep): PRD 7.3 weights, but the photo signal is Glue media content-hash overlap. resizedimgs URLs are content-addressed (`vr-listing/{md5}/`), so identical uploads share hashes and NO images are ever downloaded, and no perceptual hashing exists. Same source + same raw `sourceId` (Glue's own cross-advertiser unit id, verified reliable) is an instant match. QuintoAndar photographs its own units, so QA/Glue photo matches are impossible even with pHash; cross-source pairs top out at 0.5 and never merge. Clusters re-point `unit_id` to the earliest-seen member's unit (stable across re-runs), statuses move with it, orphaned seed units are deleted. Dry-run spot-check: `node --env-file=../../.env --import tsx src/report-dedupe.ts` (read-only). No unmerge action yet; threshold is conservative.
 
 Delisting: DONE, at the end of each successful collector sweep (not the PRD's Worker cron, which could mass-delist while the collector is down). Listings in swept neighborhoods with `last_seen_at` older than 2h15m get `delisted_at`; reappearance clears it in the upsert. Skipped when a sweep saves nothing.
 

@@ -17,6 +17,20 @@ const ACTIONS: [Exclude<UnitStatus, "dismissed">, string][] = [
 // ponytail: two known household emails, prettify by substring
 const who = (email: string) => (email.includes("amanda") ? "Amanda" : "Darlon");
 
+// Deduped units carry several offers: one outbound link per source (cheapest
+// of that source). Single offer keeps the plain "abrir".
+function openLinks(unit: UnitCard): { url: string; label: string }[] {
+  const perSource = (unit.links ?? []).filter(
+    (l, i, arr) => arr.findIndex((x) => x.source === l.source) === i,
+  );
+  if (perSource.length <= 1)
+    return [{ url: unit.cheapest.url, label: "abrir" }];
+  return perSource.map((l) => ({
+    url: l.url,
+    label: SOURCE_LABELS[l.source] ?? l.source,
+  }));
+}
+
 const SOURCE_LABELS: Record<string, string> = {
   vivareal: "VivaReal",
   zap: "ZAP",
@@ -214,15 +228,20 @@ export function Card({
                   {label}
                 </button>
               ))}
-              <a
-                href={unit.cheapest.url}
-                target="_blank"
-                rel="noreferrer"
-                draggable={false}
-                className="border-rule ml-auto shrink-0 whitespace-nowrap rounded border px-2 py-0.5 text-xs font-medium text-muted"
-              >
-                abrir ↗
-              </a>
+              <span className="ml-auto flex shrink-0 gap-1.5">
+                {openLinks(unit).map((l) => (
+                  <a
+                    key={l.url}
+                    href={l.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    draggable={false}
+                    className="border-rule shrink-0 whitespace-nowrap rounded border px-2 py-0.5 text-xs font-medium text-muted"
+                  >
+                    {l.label} ↗
+                  </a>
+                ))}
+              </span>
             </div>
           )}
           {unit.status && unit.status !== "dismissed" && (

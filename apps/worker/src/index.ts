@@ -15,6 +15,9 @@ const fillThumb = (t: string | null | undefined, dim = "360x240"): string | null
     ? t.replace("{description}", "foto").replace("{action}", "crop").replace("{width}x{height}", dim)
     : null;
 
+// QuintoAndar raw has an imageList of bare filenames; med ~20KB, xlg for detail.
+const qaImg = (f: string, size = "med") => `https://www.quintoandar.com.br/img/${size}/${f}`;
+
 app.get("/api/meta", async (c) => {
   const sql = db(c);
   const rows = await sql`
@@ -99,7 +102,10 @@ app.get("/api/units", async (c) => {
     ), agg AS (
       SELECT unit_id, count(*)::int AS listing_count,
              (max(total_monthly_cents) - min(total_monthly_cents))::int AS price_spread_cents,
-             min(first_seen_at) AS first_seen
+             min(first_seen_at) AS first_seen,
+             jsonb_agg(jsonb_build_object(
+               'source', source, 'url', url, 'total_monthly_cents', total_monthly_cents
+             ) ORDER BY total_monthly_cents) AS links
       FROM listings WHERE delisted_at IS NULL GROUP BY unit_id
     )
     SELECT u.id, u.neighborhood, u.street,
@@ -113,6 +119,8 @@ app.get("/api/units", async (c) => {
              WHERE listing_id = c.id ORDER BY observed_at ASC LIMIT 1) f
        WHERE f.t <> c.total_monthly_cents) AS price_change_pct,
       c.raw->'medias'->0->>'url' AS thumb_template,
+      c.raw->'imageList'->>0 AS qa_image,
+      a.links,
       s.status, s.actor AS status_actor, s.visit_at AS status_visit_at,
       s.amount_cents AS status_amount_cents, s.note AS status_note,
       count(*) OVER ()::int AS total_matching
@@ -151,10 +159,11 @@ app.get("/api/units", async (c) => {
       url: r.url,
     },
     listing_count: r.listing_count,
+    links: r.links ?? [],
     price_spread_cents: r.price_spread_cents,
     days_listed: r.days_listed,
     price_change_pct: r.price_change_pct,
-    thumbnail: fillThumb(r.thumb_template),
+    thumbnail: r.qa_image ? qaImg(r.qa_image) : fillThumb(r.thumb_template),
     status: r.status ?? null,
     status_actor: r.status_actor ?? null,
     status_visit_at: r.status_visit_at ?? null,
@@ -191,7 +200,7 @@ app.get("/api/units/:id", async (c) => {
       cost_confidence, bedrooms, suites, bathrooms, parking_spots, area_m2, floor,
       accepts_pets, pets_evidence, furnished, advertiser,
       first_seen_at, last_seen_at, delisted_at,
-      raw->'medias' AS medias
+      raw->'medias' AS medias, raw->'imageList' AS image_list
     FROM listings WHERE unit_id = ${id} ORDER BY total_monthly_cents ASC`;
 
   const history = await sql`
@@ -203,11 +212,14 @@ app.get("/api/units/:id", async (c) => {
     ...unit,
     listings: listings.map((l: any) => ({
       ...l,
-      photos: (l.medias ?? [])
-        .filter((m: any) => m?.type === "IMAGE")
-        .slice(0, 20)
-        .map((m: any) => fillThumb(m.url, "1024x683")),
+      photos: l.image_list
+        ? l.image_list.slice(0, 20).map((f: string) => qaImg(f, "xlg"))
+        : (l.medias ?? [])
+            .filter((m: any) => m?.type === "IMAGE")
+            .slice(0, 20)
+            .map((m: any) => fillThumb(m.url, "1024x683")),
       medias: undefined,
+      image_list: undefined,
     })),
     price_history: history,
   });
