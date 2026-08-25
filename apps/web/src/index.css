@@ -19,3 +19,11 @@ body {
 .tabular {
   font-variant-numeric: tabular-nums;
 }
+
+/* photo carousel scrolls by swipe/drag, no visible bar */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
