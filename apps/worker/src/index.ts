@@ -109,7 +109,7 @@ app.get("/api/units", async (c) => {
       FROM listings WHERE delisted_at IS NULL GROUP BY unit_id
     )
     SELECT u.id, u.neighborhood, u.street,
-      c.bedrooms, c.area_m2, c.parking_spots, c.accepts_pets, c.pets_evidence,
+      c.bedrooms, c.bathrooms, c.area_m2, c.parking_spots, c.accepts_pets, c.pets_evidence,
       c.total_monthly_cents, c.rent_cents, c.condo_cents, c.iptu_monthly_cents,
       c.insurance_cents, c.service_fee_cents, c.cost_confidence, c.source, c.url,
       a.listing_count, a.price_spread_cents, a.first_seen,
@@ -123,6 +123,7 @@ app.get("/api/units", async (c) => {
       a.links,
       s.status, s.actor AS status_actor, s.visit_at AS status_visit_at,
       s.amount_cents AS status_amount_cents, s.note AS status_note,
+      lb.liked_by, n.note AS unit_note,
       count(*) OVER ()::int AS total_matching
     FROM cheapest c
     JOIN listings l ON l.id = c.id
@@ -132,6 +133,11 @@ app.get("/api/units", async (c) => {
       SELECT status, actor, visit_at, amount_cents, note FROM status_events
       WHERE unit_id = u.id ORDER BY id DESC LIMIT 1
     ) s ON true
+    LEFT JOIN LATERAL (
+      SELECT array_agg(DISTINCT actor) AS liked_by FROM status_events
+      WHERE unit_id = u.id AND status = 'liked' AND actor IS NOT NULL
+    ) lb ON true
+    LEFT JOIN unit_notes n ON n.unit_id = u.id
     WHERE ${where.join(" AND ")}
     ORDER BY ${ORDERS[sort]}
     LIMIT $${params.length}`,
@@ -143,6 +149,7 @@ app.get("/api/units", async (c) => {
     neighborhood: r.neighborhood,
     street: r.street,
     bedrooms: r.bedrooms,
+    bathrooms: r.bathrooms,
     area_m2: r.area_m2,
     parking_spots: r.parking_spots,
     accepts_pets: r.accepts_pets,
@@ -169,6 +176,8 @@ app.get("/api/units", async (c) => {
     status_visit_at: r.status_visit_at ?? null,
     status_amount_cents: r.status_amount_cents ?? null,
     status_note: r.status_note ?? null,
+    liked_by: r.liked_by ?? [],
+    note: r.unit_note ?? null,
   }));
 
   const last = rows[rows.length - 1];
@@ -254,6 +263,24 @@ app.put("/api/units/:id/status", async (c) => {
   await sql`INSERT INTO status_events (unit_id, status, actor, visit_at, amount_cents, note)
     VALUES (${id}, ${body.status}, ${actor}, ${body.visit_at ?? null},
             ${body.amount_cents ?? null}, ${body.note ?? null})`;
+  return c.json({ ok: true });
+});
+
+// One shared free-text note per unit (compare view). Empty note deletes the row.
+app.put("/api/units/:id/note", async (c) => {
+  const sql = db(c);
+  const id = c.req.param("id");
+  const actor = c.req.header("cf-access-authenticated-user-email") ?? null;
+  const body = await c.req.json<{ note?: unknown }>();
+  if (typeof body.note !== "string") return c.json({ error: "note required" }, 400);
+  if (body.note.trim() === "") {
+    await sql`DELETE FROM unit_notes WHERE unit_id = ${id}`;
+  } else {
+    await sql`INSERT INTO unit_notes (unit_id, note, actor, updated_at)
+      VALUES (${id}, ${body.note}, ${actor}, now())
+      ON CONFLICT (unit_id) DO UPDATE
+      SET note = EXCLUDED.note, actor = EXCLUDED.actor, updated_at = now()`;
+  }
   return c.json({ ok: true });
 });
 

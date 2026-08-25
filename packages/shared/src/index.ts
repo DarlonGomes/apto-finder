@@ -48,6 +48,7 @@ export interface UnitCard {
   neighborhood: string;
   street: string | null;
   bedrooms: number | null;
+  bathrooms: number | null;
   area_m2: number | null;
   parking_spots: number | null;
   accepts_pets: boolean | null;
@@ -75,6 +76,8 @@ export interface UnitCard {
   status_visit_at: string | null; // visit_booked: scheduled date/time (ISO)
   status_amount_cents: number | null; // proposal_made: offer in integer BRL cents
   status_note: string | null; // proposal_made: optional context
+  liked_by: string[]; // every actor who ever liked the unit (compare view)
+  note: string | null; // shared per-unit note from unit_notes
 }
 
 /** Extra payload for PUT /api/units/:id/status, per status. */

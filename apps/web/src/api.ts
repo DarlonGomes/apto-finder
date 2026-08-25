@@ -72,6 +72,21 @@ export function fetchUnits(f: Filters, cursor?: string | null, limit = 30): Prom
   return fetch(`/api/units?${p}`).then((r) => json<UnitsResponse>(r));
 }
 
+// Compare view: every liked+ unit, no other filters, cheapest first.
+export function fetchCompareUnits(): Promise<UnitsResponse> {
+  return fetch(
+    "/api/units?status=liked,visit_booked,proposal_made&pets=any&sort=total_asc&limit=100",
+  ).then((r) => json<UnitsResponse>(r));
+}
+
+export function putNote(unitId: string, note: string): Promise<unknown> {
+  return fetch(`/api/units/${unitId}/note`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ note }),
+  }).then(json);
+}
+
 export function putStatus(
   unitId: string,
   status: UnitStatus | null,

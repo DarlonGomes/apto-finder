@@ -10,7 +10,7 @@ import { StatusActions } from "./StatusActions";
 const SWIPE_THRESHOLD = 80;
 
 // ponytail: two known household emails, prettify by substring
-const who = (email: string) => (email.includes("amanda") ? "Amanda" : "Darlon");
+export const who = (email: string) => (email.includes("amanda") ? "Amanda" : "Darlon");
 
 // Deduped units carry several offers: one outbound link per source (cheapest
 // of that source). Single offer keeps the plain "abrir".

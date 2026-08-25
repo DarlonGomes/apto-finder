@@ -126,6 +126,18 @@ export async function dedupe(client: Client): Promise<number> {
     // Whole units move (delisted siblings included), statuses follow, and the
     // now-orphaned seed units go away.
     await client.query(`UPDATE status_events SET unit_id = $1 WHERE unit_id = ANY($2)`, [canon, losers]);
+    // Notes are the one thing we can't recompute: fold loser notes into the
+    // canonical unit (newline-joined); loser rows die with their units (cascade).
+    await client.query(
+      `INSERT INTO unit_notes (unit_id, note, actor, updated_at)
+       SELECT $1, string_agg(note, E'\n' ORDER BY updated_at), max(actor), max(updated_at)
+       FROM unit_notes WHERE unit_id = ANY($2)
+       HAVING count(*) > 0
+       ON CONFLICT (unit_id) DO UPDATE SET
+         note = unit_notes.note || E'\n' || EXCLUDED.note,
+         updated_at = greatest(unit_notes.updated_at, EXCLUDED.updated_at)`,
+      [canon, losers],
+    );
     await client.query(`UPDATE listings SET unit_id = $1 WHERE unit_id = ANY($2)`, [canon, losers]);
     await client.query(`DELETE FROM units WHERE id = ANY($1)`, [losers]);
     repointed += losers.length;

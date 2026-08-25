@@ -9,6 +9,7 @@ import {
 import type { StatusExtra, UnitCard, UnitStatus } from "@apto/shared";
 import {
   DEFAULT_FILTERS,
+  fetchCompareUnits,
   fetchMeta,
   fetchUnits,
   filtersFromParams,
@@ -17,6 +18,7 @@ import {
   type Filters,
 } from "./api";
 import { Card } from "./Card";
+import { Compare } from "./Compare";
 import { Detail } from "./Detail";
 import { EmptyState } from "./EmptyState";
 import { FilterSheet } from "./FilterSheet";
@@ -43,12 +45,19 @@ function initialFilters(): Filters {
 export default function App() {
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [sheetOpen, setSheetOpen] = useState(false);
-  // Detail overlay rides a `unit` URL param so back closes it and links share it.
+  // Detail and compare overlays ride URL params so back closes them and links share them.
   const [detailId, setDetailId] = useState<string | null>(
     () => new URLSearchParams(location.search).get("unit"),
   );
+  const [compareOpen, setCompareOpen] = useState(
+    () => new URLSearchParams(location.search).get("view") === "compare",
+  );
   useEffect(() => {
-    const onPop = () => setDetailId(new URLSearchParams(location.search).get("unit"));
+    const onPop = () => {
+      const p = new URLSearchParams(location.search);
+      setDetailId(p.get("unit"));
+      setCompareOpen(p.get("view") === "compare");
+    };
     addEventListener("popstate", onPop);
     return () => removeEventListener("popstate", onPop);
   }, []);
@@ -58,6 +67,12 @@ export default function App() {
     history.pushState(null, "", url);
     setDetailId(id);
   };
+  const openCompare = () => {
+    const url = new URL(location.href);
+    url.searchParams.set("view", "compare");
+    history.pushState(null, "", url);
+    setCompareOpen(true);
+  };
   const [toast, setToast] = useState<{ unitId: string } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const qc = useQueryClient();
@@ -65,8 +80,10 @@ export default function App() {
   // URL is the state (PRD 9.4)
   useEffect(() => {
     const params = filtersToParams(filters);
-    const unit = new URLSearchParams(location.search).get("unit");
+    const current = new URLSearchParams(location.search);
+    const unit = current.get("unit");
     if (unit) params.set("unit", unit);
+    if (current.get("view") === "compare") params.set("view", "compare");
     const p = params.toString();
     history.replaceState(null, "", p ? `?${p}` : location.pathname);
     try {
@@ -84,6 +101,12 @@ export default function App() {
     placeholderData: keepPreviousData,
   });
   const meta = useQuery({ queryKey: ["meta"], queryFn: fetchMeta, staleTime: 60_000 });
+  // Shared with the Compare overlay (same key); also feeds the header button count.
+  const compare = useQuery({
+    queryKey: ["compare"],
+    queryFn: fetchCompareUnits,
+    staleTime: 60_000,
+  });
 
   const triage = useMutation({
     mutationFn: ({
@@ -133,6 +156,7 @@ export default function App() {
     onSettled: (_d, _e, { unitId }) => {
       qc.invalidateQueries({ queryKey: ["units"] });
       qc.invalidateQueries({ queryKey: ["unit", unitId] });
+      qc.invalidateQueries({ queryKey: ["compare"] });
     },
   });
 
@@ -182,6 +206,12 @@ export default function App() {
               ))}
             </select>
             <button
+              onClick={openCompare}
+              className="border-rule rounded border px-2 py-1 text-xs font-medium"
+            >
+              ⚖️ <span className="tabular">{compare.data?.total_matching ?? 0}</span>
+            </button>
+            <button
               onClick={() => setSheetOpen(true)}
               className="rounded border border-ink px-3 py-1 text-xs font-medium"
             >
@@ -224,6 +254,8 @@ export default function App() {
           </button>
         )}
       </main>
+
+      {compareOpen && <Compare onOpen={openDetail} onClose={() => history.back()} />}
 
       {detailId && (
         <Detail
