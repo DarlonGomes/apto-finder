@@ -22,6 +22,40 @@ async function fetchAll(f: Filters): Promise<UnitCard[]> {
   return out;
 }
 
+/** One unit on a small map with the metro stations around it (detail screen). */
+export function MiniMap({ lat, lng }: { lat: number; lng: number }) {
+  const el = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!el.current) return;
+    const m = L.map(el.current, { scrollWheelZoom: false }).setView([lat, lng], 15);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap",
+      maxZoom: 19,
+    }).addTo(m);
+    for (const [name, sLat, sLng] of STATIONS)
+      L.circleMarker([sLat, sLng], {
+        radius: 5,
+        color: "#6B7280",
+        fillColor: "#FAFAF7",
+        fillOpacity: 1,
+        weight: 2,
+      })
+        .bindTooltip(`🚇 ${name}`)
+        .addTo(m);
+    L.circleMarker([lat, lng], {
+      radius: 9,
+      color: "#14181C",
+      fillColor: "#14181C",
+      fillOpacity: 0.9,
+      weight: 1,
+    }).addTo(m);
+    return () => {
+      m.remove();
+    };
+  }, [lat, lng]);
+  return <div ref={el} className="border-rule h-48 w-full rounded border" />;
+}
+
 export default function MapView({
   filters,
   onOpen,

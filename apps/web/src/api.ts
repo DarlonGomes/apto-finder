@@ -120,6 +120,8 @@ export interface DetailListing {
   accepts_pets: boolean | null;
   furnished: string | null;
   advertiser: string | null;
+  lat: number | null;
+  lng: number | null;
   first_seen_at: string;
   last_seen_at: string;
   delisted_at: string | null;

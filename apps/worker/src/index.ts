@@ -228,7 +228,7 @@ app.get("/api/units/:id", async (c) => {
     SELECT id, source, source_listing_id, url, rent_cents, condo_cents,
       iptu_monthly_cents, insurance_cents, service_fee_cents, total_monthly_cents,
       cost_confidence, bedrooms, suites, bathrooms, parking_spots, area_m2, floor,
-      accepts_pets, pets_evidence, furnished, advertiser,
+      accepts_pets, pets_evidence, furnished, advertiser, lat, lng,
       first_seen_at, last_seen_at, delisted_at,
       raw->'medias' AS medias, raw->'imageList' AS image_list
     FROM listings WHERE unit_id = ${id} ORDER BY total_monthly_cents ASC`;

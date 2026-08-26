@@ -1,14 +1,17 @@
 // Unit detail (PRD 9.3): photo carousel, full cost breakdown, price history
 // sparkline, every offer with an outbound link. No contact form.
 
-import { useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { StatusExtra, UnitStatus } from "@apto/shared";
 import type { DetailListing } from "./api";
 import { brl, fetchUnitDetail } from "./api";
 import { NoteField } from "./Compare";
 import { CostBar } from "./CostBar";
+import { fmtDist, nearestStation } from "./stations";
 import { StatusActions } from "./StatusActions";
+
+const MiniMap = lazy(() => import("./MapView").then((m) => ({ default: m.MiniMap })));
 
 const SOURCE_LABELS: Record<string, string> = {
   vivareal: "VivaReal",
@@ -213,6 +216,34 @@ export function Detail({
               </h2>
               <NoteField unitId={u.id} note={u.note} />
             </section>
+
+            {cheapest.lat != null && cheapest.lng != null && (
+              <section>
+                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                  Localização
+                </h2>
+                <p className="mb-2 flex items-center justify-between text-sm">
+                  <span>
+                    <span aria-hidden="true">🚇</span>{" "}
+                    {(() => {
+                      const s = nearestStation(cheapest.lat, cheapest.lng);
+                      return `${fmtDist(s.meters)} · ${s.name}`;
+                    })()}
+                  </span>
+                  <a
+                    href={`https://www.google.com/maps?q=${cheapest.lat},${cheapest.lng}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="border-rule rounded border px-2 py-0.5 text-xs font-medium text-muted"
+                  >
+                    Google Maps ↗
+                  </a>
+                </p>
+                <Suspense fallback={<div className="border-rule h-48 w-full rounded border" />}>
+                  <MiniMap lat={cheapest.lat} lng={cheapest.lng} />
+                </Suspense>
+              </section>
+            )}
 
             <section>
               <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
