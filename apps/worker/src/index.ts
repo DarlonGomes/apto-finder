@@ -328,18 +328,27 @@ async function runDigest(env: Bindings, send: boolean, hours = 25): Promise<stri
   const sql = neon((env.DATABASE_URL ?? env.DATABASE_URL_POOLED)!);
   const mail = await buildDigest(sql, env.APP_URL ?? "https://apto-finder.gomesdarlon.workers.dev", hours);
   if (!mail) return "nada mudou nos favoritos";
+  let report = "";
   if (send) {
     if (!env.EMAIL || !env.DIGEST_TO || !env.DIGEST_FROM) throw new Error("email binding/vars missing");
-    await env.EMAIL.send({
-      from: { name: "apto-finder", email: env.DIGEST_FROM },
-      to: env.DIGEST_TO.split(",").map((s) => s.trim()),
-      subject: mail.subject,
-      text: mail.text,
-    });
+    // One send per recipient: an unverified destination must not block the other.
+    const to = env.DIGEST_TO.split(",").map((t) => t.trim());
+    const results = await Promise.allSettled(
+      to.map((t) =>
+        env.EMAIL!.send({
+          from: { name: "apto-finder", email: env.DIGEST_FROM! },
+          to: t,
+          subject: mail.subject,
+          text: mail.text,
+        }),
+      ),
+    );
+    report =
+      results
+        .map((r, i) => `${to[i]}: ${r.status === "fulfilled" ? "enviado" : String(r.reason)}`)
+        .join("\n") + "\n\n";
   }
-  return `${mail.subject}
-
-${mail.text}`;
+  return `${report}${mail.subject}\n\n${mail.text}`;
 }
 
 app.get("/api/digest", async (c) => {
