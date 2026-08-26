@@ -166,6 +166,15 @@ export default function App() {
   });
 
   const all = units.data?.pages.flatMap((p) => p.units) ?? [];
+  // Visits still ahead (2h grace), soonest first. Same data the compare view uses.
+  const visits = (compare.data?.units ?? [])
+    .filter(
+      (u) =>
+        u.status === "visit_booked" &&
+        u.status_visit_at &&
+        Date.parse(u.status_visit_at) > Date.now() - 2 * 3_600_000,
+    )
+    .sort((a, b) => Date.parse(a.status_visit_at!) - Date.parse(b.status_visit_at!));
   const total = units.data?.pages[0]?.total_matching ?? 0;
 
   const chips = [
@@ -197,6 +206,7 @@ export default function App() {
             >
               <option value="">todos</option>
               <option value="liked">❤️ gostei</option>
+              <option value="both">❤️ nós dois</option>
               <option value="visit_booked">📅 visita</option>
               <option value="proposal_made">📝 proposta</option>
               <option value="dismissed">descartados</option>
@@ -239,6 +249,30 @@ export default function App() {
         <p className="border-rule border-b px-4 py-1.5 text-xs text-muted">
           dados de {new Date(meta.data.last_sweep_at).toLocaleString("pt-BR")}
         </p>
+      )}
+
+      {visits.length > 0 && (
+        <div className="border-rule flex gap-2 overflow-x-auto border-b px-4 py-2 text-xs">
+          <span className="shrink-0 self-center font-semibold">📅 Visitas</span>
+          {visits.map((u) => (
+            <button
+              key={u.id}
+              onClick={() => openDetail(u.id)}
+              className="border-rule shrink-0 whitespace-nowrap rounded border px-2 py-1 text-left"
+            >
+              <span className="font-medium">
+                {new Date(u.status_visit_at!).toLocaleString("pt-BR", {
+                  weekday: "short",
+                  day: "2-digit",
+                  month: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+              <span className="text-muted"> · {u.neighborhood}{u.street ? `, ${u.street}` : ""}</span>
+            </button>
+          ))}
+        </div>
       )}
 
       <main>

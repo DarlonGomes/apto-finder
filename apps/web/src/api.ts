@@ -10,7 +10,7 @@ export interface Filters {
   neighborhoods: string[];
   cost_confidence: "any" | "complete";
   sort: "total_asc" | "newest" | "price_per_m2" | "biggest_drop";
-  status: "" | UnitStatus; // "" = all (server hides dismissed by default)
+  status: "" | UnitStatus | "both"; // "" = all (server hides dismissed by default), both = liked by both
   sources: Source[];
 }
 

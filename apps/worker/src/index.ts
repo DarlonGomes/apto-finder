@@ -65,7 +65,10 @@ app.get("/api/units", async (c) => {
   if (pets === "required") where.push("c.accepts_pets IS TRUE");
   else if (pets === "unknown_ok") where.push("c.accepts_pets IS DISTINCT FROM FALSE");
 
-  if (q.status) add("s.status = ANY(?)", q.status.split(","));
+  // "both" is virtual: liked by both household members and not since dismissed
+  if (q.status === "both")
+    where.push("array_length(lb.liked_by, 1) >= 2 AND s.status <> 'dismissed'");
+  else if (q.status) add("s.status = ANY(?)", q.status.split(","));
   else where.push("COALESCE(s.status, '') <> 'dismissed'");
 
   const sort = q.sort ?? "total_asc";
