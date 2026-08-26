@@ -50,6 +50,8 @@ export interface UnitCard {
   bedrooms: number | null;
   bathrooms: number | null;
   area_m2: number | null;
+  lat: number | null;
+  lng: number | null;
   parking_spots: number | null;
   accepts_pets: boolean | null;
   pets_evidence: PetsEvidence | null;

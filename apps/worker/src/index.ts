@@ -118,6 +118,7 @@ app.get("/api/units", async (c) => {
     )
     SELECT u.id, u.neighborhood, u.street,
       c.bedrooms, c.bathrooms, c.area_m2, c.parking_spots, c.accepts_pets, c.pets_evidence,
+      c.lat, c.lng,
       c.total_monthly_cents, c.rent_cents, c.condo_cents, c.iptu_monthly_cents,
       c.insurance_cents, c.service_fee_cents, c.cost_confidence, c.source, c.url,
       a.listing_count, a.price_spread_cents, a.first_seen,
@@ -166,6 +167,8 @@ app.get("/api/units", async (c) => {
     bedrooms: r.bedrooms,
     bathrooms: r.bathrooms,
     area_m2: r.area_m2,
+    lat: r.lat,
+    lng: r.lng,
     parking_spots: r.parking_spots,
     accepts_pets: r.accepts_pets,
     pets_evidence: r.pets_evidence,

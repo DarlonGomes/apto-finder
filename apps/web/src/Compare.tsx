@@ -8,6 +8,7 @@ import type { UnitCard } from "@apto/shared";
 import { brl, fetchCompareUnits, putNote } from "./api";
 import { who } from "./Card";
 import { CostBar } from "./CostBar";
+import { fmtDist, nearestStation } from "./stations";
 
 const STATUS_LABELS: Record<string, string> = {
   liked: "❤️ gostei",
@@ -69,6 +70,9 @@ export function Compare({
   const bestArea = bestVal(units, (u) => u.area_m2, "max");
   const bestPerM2 = bestVal(units, perM2, "min");
   const bestDays = bestVal(units, (u) => u.days_listed, "max");
+  const metro = (u: UnitCard) =>
+    u.lat != null && u.lng != null ? nearestStation(u.lat, u.lng) : null;
+  const bestMetro = bestVal(units, (u) => metro(u)?.meters ?? null, "min");
   const bestDrop = bestVal(
     units,
     (u) => (u.price_change_pct != null && u.price_change_pct < 0 ? u.price_change_pct : null),
@@ -125,6 +129,19 @@ export function Compare({
       label: "anúncios",
       cell: (u) =>
         `${u.listing_count}${u.price_spread_cents > 0 ? ` · Δ ${brl(u.price_spread_cents)}` : ""}`,
+    },
+    {
+      label: "metrô",
+      cell: (u) => {
+        const m = metro(u);
+        return m ? (
+          <span className={hl(m.meters === bestMetro)}>
+            {fmtDist(m.meters)} <span className="text-muted">{m.name}</span>
+          </span>
+        ) : (
+          "—"
+        );
+      },
     },
     {
       label: "pets",

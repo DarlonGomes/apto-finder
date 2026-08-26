@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   keepPreviousData,
   useInfiniteQuery,
@@ -22,6 +22,9 @@ import { Compare } from "./Compare";
 import { Detail } from "./Detail";
 import { EmptyState } from "./EmptyState";
 import { FilterSheet } from "./FilterSheet";
+
+// Leaflet stays out of the main bundle until the map is opened.
+const MapView = lazy(() => import("./MapView"));
 
 const SORT_LABELS: Record<Filters["sort"], string> = {
   total_asc: "menor custo total",
@@ -49,14 +52,14 @@ export default function App() {
   const [detailId, setDetailId] = useState<string | null>(
     () => new URLSearchParams(location.search).get("unit"),
   );
-  const [compareOpen, setCompareOpen] = useState(
-    () => new URLSearchParams(location.search).get("view") === "compare",
+  const [view, setView] = useState<string | null>(
+    () => new URLSearchParams(location.search).get("view"),
   );
   useEffect(() => {
     const onPop = () => {
       const p = new URLSearchParams(location.search);
       setDetailId(p.get("unit"));
-      setCompareOpen(p.get("view") === "compare");
+      setView(p.get("view"));
     };
     addEventListener("popstate", onPop);
     return () => removeEventListener("popstate", onPop);
@@ -67,11 +70,11 @@ export default function App() {
     history.pushState(null, "", url);
     setDetailId(id);
   };
-  const openCompare = () => {
+  const openView = (v: "compare" | "map") => {
     const url = new URL(location.href);
-    url.searchParams.set("view", "compare");
+    url.searchParams.set("view", v);
     history.pushState(null, "", url);
-    setCompareOpen(true);
+    setView(v);
   };
   const [toast, setToast] = useState<{ unitId: string } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -83,7 +86,8 @@ export default function App() {
     const current = new URLSearchParams(location.search);
     const unit = current.get("unit");
     if (unit) params.set("unit", unit);
-    if (current.get("view") === "compare") params.set("view", "compare");
+    const v = current.get("view");
+    if (v) params.set("view", v);
     const p = params.toString();
     history.replaceState(null, "", p ? `?${p}` : location.pathname);
     try {
@@ -157,6 +161,7 @@ export default function App() {
       qc.invalidateQueries({ queryKey: ["units"] });
       qc.invalidateQueries({ queryKey: ["unit", unitId] });
       qc.invalidateQueries({ queryKey: ["compare"] });
+      qc.invalidateQueries({ queryKey: ["map"] });
     },
   });
 
@@ -206,8 +211,16 @@ export default function App() {
               ))}
             </select>
             <button
-              onClick={openCompare}
+              onClick={() => openView("map")}
               className="border-rule rounded border px-2 py-1 text-xs font-medium"
+              aria-label="mapa"
+            >
+              🗺️
+            </button>
+            <button
+              onClick={() => openView("compare")}
+              className="border-rule rounded border px-2 py-1 text-xs font-medium"
+              aria-label="comparar"
             >
               ⚖️ <span className="tabular">{compare.data?.total_matching ?? 0}</span>
             </button>
@@ -255,7 +268,12 @@ export default function App() {
         )}
       </main>
 
-      {compareOpen && <Compare onOpen={openDetail} onClose={() => history.back()} />}
+      {view === "compare" && <Compare onOpen={openDetail} onClose={() => history.back()} />}
+      {view === "map" && (
+        <Suspense fallback={null}>
+          <MapView filters={filters} onOpen={openDetail} onClose={() => history.back()} />
+        </Suspense>
+      )}
 
       {detailId && (
         <Detail
