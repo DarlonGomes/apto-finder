@@ -106,18 +106,25 @@ export function StatusActions({
   onTriage: (status: UnitStatus | null, extra?: StatusExtra) => void;
 }) {
   const [modal, setModal] = useState<"visit_booked" | "proposal_made" | null>(null);
+  // Pipeline: stages already passed stay marked (outline), current one is filled.
+  const rank = status && status !== "dismissed" ? ACTIONS.findIndex(([s]) => s === status) : -1;
   return (
     <>
-      {ACTIONS.map(([s, label]) => (
+      {ACTIONS.map(([s, label], i) => (
         <button
           key={s}
+          disabled={i < rank}
           onClick={() => {
             if (status === s) onTriage(null);
             else if (s === "liked") onTriage("liked");
             else setModal(s);
           }}
           className={`whitespace-nowrap rounded border px-2 py-0.5 text-xs font-medium ${
-            status === s ? "border-good bg-good text-white" : "border-rule text-muted"
+            i === rank
+              ? "border-good bg-good text-white"
+              : i < rank
+                ? "border-good text-good"
+                : "border-rule text-muted"
           }`}
         >
           {label}

@@ -171,14 +171,15 @@ export function Card({
           {unit.status && unit.status !== "dismissed" && (
             <p className="mt-1 truncate text-xs text-muted">
               {[
+                unit.status === "liked" && "Gostei",
                 unit.status_visit_at &&
-                  new Date(unit.status_visit_at).toLocaleString("pt-BR", {
+                  `Visita agendada para ${new Date(unit.status_visit_at).toLocaleString("pt-BR", {
                     day: "2-digit",
                     month: "2-digit",
                     hour: "2-digit",
                     minute: "2-digit",
-                  }),
-                unit.status_amount_cents != null && brl(unit.status_amount_cents),
+                  })}`,
+                unit.status_amount_cents != null && `Proposta de ${brl(unit.status_amount_cents)}`,
                 unit.status_note,
                 unit.status_actor && who(unit.status_actor),
               ]
