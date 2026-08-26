@@ -328,7 +328,7 @@ app.get("/api/neighborhoods", async (c) => {
 // The daily cron below calls the same thing.
 async function runDigest(env: Bindings, send: boolean, hours = 25, test = false): Promise<string> {
   const sql = makeSql((env.DATABASE_URL ?? env.DATABASE_URL_POOLED)!, env.DB_DRIVER);
-  let mail = await buildDigest(sql, env.APP_URL ?? "https://apto-finder.gomesdarlon.workers.dev", hours);
+  let mail = await buildDigest(sql, env.APP_URL ?? "", hours);
   // ?test=1: prove delivery works even when nothing changed
   if (!mail && test)
     mail = {
@@ -369,6 +369,8 @@ app.get("/api/digest", async (c) => {
 export default {
   fetch: app.fetch,
   scheduled: (_ctrl: ScheduledController, env: Bindings, ctx: ExecutionContext) => {
+    // No email binding or recipients configured: the cron is a no-op.
+    if (!env.EMAIL || !env.DIGEST_TO || !env.DIGEST_FROM) return;
     ctx.waitUntil(runDigest(env, true).then((r) => console.log("digest:", r.split("\n")[0])));
   },
 };

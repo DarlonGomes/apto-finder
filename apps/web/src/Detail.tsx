@@ -217,13 +217,13 @@ export function Detail({
               <NoteField unitId={u.id} note={u.note} />
             </section>
 
-            {cheapest.lat != null && cheapest.lng != null && (
+            {cheapest.lat != null && cheapest.lng != null && (() => { const st = nearestStation(cheapest.lat, cheapest.lng); return (
               <section>
                 <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
                   Localização
                 </h2>
                 <p className="mb-2 flex items-center justify-between text-sm">
-                  <span>{fmtStation(nearestStation(cheapest.lat, cheapest.lng))}</span>
+                  <span>{st ? fmtStation(st) : "—"}</span>
                   <a
                     href={`https://www.google.com/maps?q=${cheapest.lat},${cheapest.lng}`}
                     target="_blank"
@@ -237,7 +237,7 @@ export function Detail({
                   <MiniMap lat={cheapest.lat} lng={cheapest.lng} />
                 </Suspense>
               </section>
-            )}
+            ); })()}
 
             <section>
               <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">

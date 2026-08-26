@@ -1,3 +1,7 @@
 # `wrangler dev` reads this. Local Postgres from docker-compose.yml by default;
 # a Neon URL works too (the driver is picked from the host name).
 DATABASE_URL=postgres://apto:apto@localhost:5432/apto
+# Optional, for the digest (GET /api/digest). Locally the send is simulated.
+# DIGEST_TO=you@example.com,partner@example.com
+# DIGEST_FROM=apto@your-zone.com
+# APP_URL=http://localhost:8787

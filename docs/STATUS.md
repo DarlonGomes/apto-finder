@@ -1,14 +1,14 @@
 # Project status
 
-Rio rental aggregator for two users (Darlon + Amanda). Full spec: [PRD.md](../PRD.md). This file is the session pick-up point: read it, then continue from "Next up".
+Rio rental aggregator for a two-person household. Full spec: [PRD.md](../PRD.md). This file is the session pick-up point: read it, then continue from "Next up".
 
 Last updated: 2026-08-26.
 
 ## Live
 
-- App: https://apto-finder.gomesdarlon.workers.dev (SPA + API, one Worker)
-- Auth: Cloudflare Access, one-time PIN. Policy "household" allows gomesdarlon@icloud.com and gomesamanda.stn@gmail.com. App id `eaa9413d-25a0-4a75-b2d4-3cd6cc238176`, policy id `8b16ea16-0d24-447f-84b6-c79b078c9eb3`, session 730h.
-- Email: Email Routing ENABLED on tiersfc.com on 2026-08-26 via API (zone `7a9cd301aa183d3d896bde79a159c427`; MX/SPF/DKIM added, zone had no MX before). Destination addresses: gomesdarlon@icloud.com verified, gomesamanda.stn@gmail.com added, verification pending until she clicks Cloudflare's email. Sends to verified destinations are free on any plan.
+- App: one Worker serving SPA + API on workers.dev (URL in docs/private/ops.md).
+- Auth: Cloudflare Access, one-time PIN, a policy allowing the two household emails (app/policy ids in docs/private/ops.md), session 730h.
+- Email: Email Routing enabled 2026-08-26 on the household zone via API (MX/SPF/DKIM added; the zone had no MX). One destination verified, the other pending verification. Zone id and addresses in docs/private/ops.md. Sends to verified destinations are free on any plan.
 - DB: Neon Postgres (sa-east-1). Worker secret is named `DATABASE_URL_POOLED` (code accepts `DATABASE_URL` too). An `ACCESS_KEY` secret exists on the worker but nothing uses it yet (reserved for the collector cache-purge webhook).
 
 ## Local development (any Postgres)
@@ -18,7 +18,7 @@ Last updated: 2026-08-26.
 ## Deploy flow
 
 Work on `dev`, merge to `main`, Cloudflare Workers Builds deploys automatically.
-Build trigger (fixed by hand via API, id `fcf82d6d-7390-4974-87a9-174821cc2e32`):
+Build trigger (fixed by hand via API, id in docs/private/ops.md):
 root `/`, build `pnpm install --frozen-lockfile && pnpm --filter web build`, deploy `pnpm --filter worker exec wrangler deploy`, branch `main` only. Node 22 via `.nvmrc`.
 
 ## Milestones (PRD section 11)
@@ -38,7 +38,7 @@ root `/`, build `pnpm install --frozen-lockfile && pnpm --filter web build`, dep
 | 11 | Map + metro distance (PRD 9.3 secondary screen) | DONE (2026-08-25). `?view=map` overlay (🗺️ header button), Leaflet + OSM tiles, lazy-loaded chunk (44 KB gz) so the main bundle stays ~85 KB gz. Pins for every unit matching the current filters (walks the cursor, cap 1000), shortlisted ones bigger and green, tooltip with total, tap opens detail. Metro stations (Linhas 1/2/4, 41 stations from OSM, `apps/web/src/stations.ts`) drawn as small markers; nearest station + haversine distance computed client-side and shown on cards ("🚇 650 m · Saens Peña") and as a compare row. `/api/units` now returns `lat`/`lng` (100% coverage on both sources). BRT added in row 13. |
 | 12 | Both-liked filter + upcoming visits strip | DONE (2026-08-25). Status dropdown gained "❤️ nós dois" (`status=both`, virtual: `array_length(liked_by,1) >= 2` and not dismissed). A "📅 Visitas" chip strip under the header lists visit_booked units with `visit_at` in the future (2h grace), soonest first, from the compare query; tap opens detail. |
 | 13 | BRT stations | DONE (2026-08-25). `stations.ts` now carries a `kind` (metro/brt): 41 metro + 153 BRT stations from OSM (`public_transport=station`, platform codes and Rodoviária filtered out). Nearest station is of any kind, icon 🚇/🚌 on cards, compare ("transporte" row), detail and both maps. |
-| 8 | Daily digest | DONE (2026-08-26), narrow version. Worker cron `0 11 * * *` (08:00 BRT) runs `buildDigest` (apps/worker/src/digest.ts): emails ONLY when a liked/visit_booked/proposal_made unit changed price or every listing of it delisted in the last 25h, plus the count of new units. Nothing changed = no email. Sent via the `send_email` binding `EMAIL` (allowlist: both household emails), from `apto@tiersfc.com`, one send per recipient so an unverified address never blocks the other. Vars `DIGEST_TO`, `DIGEST_FROM`, `APP_URL` in wrangler.jsonc. Manual: `GET /api/digest` previews (`?hours=720` widens the window, `&send=1` sends now and reports per recipient). Local: `wrangler dev --test-scheduled` then `curl localhost:8787/cdn-cgi/handler/scheduled`. |
+| 8 | Daily digest | DONE (2026-08-26), narrow version. Worker cron `0 11 * * *` (08:00 BRT) runs `buildDigest` (apps/worker/src/digest.ts): emails ONLY when a liked/visit_booked/proposal_made unit changed price or every listing of it delisted in the last 25h, plus the count of new units. Nothing changed = no email. Sent via the `send_email` binding `EMAIL` (no allowlist; it can only reach verified destinations anyway), one send per recipient so an unverified address never blocks the other. `DIGEST_TO`, `DIGEST_FROM`, `APP_URL` are worker SECRETS (values in docs/private/ops.md); cron is a no-op when any is missing. Manual: `GET /api/digest` previews (`?hours=720` widens the window, `&send=1` sends now and reports per recipient). Local: `wrangler dev --test-scheduled` then `curl localhost:8787/cdn-cgi/handler/scheduled`. |
 
 Dedup (apps/collector/src/dedupe.ts, runs at the end of each sweep): PRD 7.3 weights, but the photo signal is Glue media content-hash overlap. resizedimgs URLs are content-addressed (`vr-listing/{md5}/`), so identical uploads share hashes and NO images are ever downloaded, and no perceptual hashing exists. Same source + same raw `sourceId` (Glue's own cross-advertiser unit id, verified reliable) is an instant match. QuintoAndar photographs its own units, so QA/Glue photo matches are impossible even with pHash; cross-source pairs top out at 0.5 and never merge. Clusters re-point `unit_id` to the earliest-seen member's unit (stable across re-runs), statuses move with it, orphaned seed units are deleted. Dry-run spot-check: `node --env-file=../../.env --import tsx src/report-dedupe.ts` (read-only). No unmerge action yet; threshold is conservative.
 

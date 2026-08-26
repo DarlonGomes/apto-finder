@@ -213,8 +213,9 @@ export function haversine(lat1: number, lng1: number, lat2: number, lng2: number
 
 export interface Nearest { name: string; meters: number; kind: StationKind }
 
-/** Closest station of any kind. */
-export function nearestStation(lat: number, lng: number): Nearest {
+/** Closest station of any kind, or null when there is no station list. */
+export function nearestStation(lat: number, lng: number): Nearest | null {
+  if (STATIONS.length === 0) return null;
   let best: Nearest = { name: STATIONS[0]![0], meters: Infinity, kind: "metro" };
   for (const [name, sLat, sLng, kind] of STATIONS) {
     const m = haversine(lat, lng, sLat, sLng);
