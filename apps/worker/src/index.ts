@@ -324,9 +324,15 @@ app.get("/api/neighborhoods", async (c) => {
 
 // Digest: GET /api/digest previews the email (or "nada mudou"); ?send=1 sends it now.
 // The daily cron below calls the same thing.
-async function runDigest(env: Bindings, send: boolean, hours = 25): Promise<string> {
+async function runDigest(env: Bindings, send: boolean, hours = 25, test = false): Promise<string> {
   const sql = neon((env.DATABASE_URL ?? env.DATABASE_URL_POOLED)!);
-  const mail = await buildDigest(sql, env.APP_URL ?? "https://apto-finder.gomesdarlon.workers.dev", hours);
+  let mail = await buildDigest(sql, env.APP_URL ?? "https://apto-finder.gomesdarlon.workers.dev", hours);
+  // ?test=1: prove delivery works even when nothing changed
+  if (!mail && test)
+    mail = {
+      subject: "apto-finder: teste de envio",
+      text: `Nada mudou nos favoritos nas últimas ${hours}h, mas o envio funciona.\n${env.APP_URL ?? ""}\n`,
+    };
   if (!mail) return "nada mudou nos favoritos";
   let report = "";
   if (send) {
@@ -354,7 +360,7 @@ async function runDigest(env: Bindings, send: boolean, hours = 25): Promise<stri
 app.get("/api/digest", async (c) => {
   // ?hours= widens the preview window (max 30 days); handy for "what changed this week"
   const hours = Math.min(Number(c.req.query("hours") ?? 25) || 25, 24 * 30);
-  const out = await runDigest(c.env, c.req.query("send") === "1", hours);
+  const out = await runDigest(c.env, c.req.query("send") === "1", hours, c.req.query("test") === "1");
   return c.text(out);
 });
 
