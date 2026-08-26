@@ -211,12 +211,13 @@ app.get("/api/units/:id", async (c) => {
   const id = c.req.param("id");
   const [unit] = await sql`
     SELECT u.*, s.status, s.actor AS status_actor, s.visit_at AS status_visit_at,
-      s.amount_cents AS status_amount_cents, s.note AS status_note
+      s.amount_cents AS status_amount_cents, s.note AS status_note, n.note
     FROM units u
     LEFT JOIN LATERAL (
       SELECT status, actor, visit_at, amount_cents, note FROM status_events
       WHERE unit_id = u.id ORDER BY id DESC LIMIT 1
     ) s ON true
+    LEFT JOIN unit_notes n ON n.unit_id = u.id
     WHERE u.id = ${id}`;
   if (!unit) return c.json({ error: "not found" }, 404);
 

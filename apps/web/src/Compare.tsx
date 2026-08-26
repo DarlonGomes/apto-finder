@@ -27,19 +27,23 @@ function bestVal(
   return vals.every((v) => v === b) ? null : b;
 }
 
-function NoteCell({ unit }: { unit: UnitCard }) {
+/** Shared per-unit note, saved on blur. Used by Compare and Detail. */
+export function NoteField({ unitId, note }: { unitId: string; note: string | null }) {
   const qc = useQueryClient();
-  const [text, setText] = useState(unit.note ?? "");
+  const [text, setText] = useState(note ?? "");
   const save = useMutation({
-    mutationFn: (note: string) => putNote(unit.id, note),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["compare"] }),
+    mutationFn: (n: string) => putNote(unitId, n),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["compare"] });
+      qc.invalidateQueries({ queryKey: ["unit", unitId] });
+    },
   });
   return (
     <div>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        onBlur={() => text !== (unit.note ?? "") && save.mutate(text)}
+        onBlur={() => text !== (note ?? "") && save.mutate(text)}
         rows={3}
         placeholder="ex: cheiro de mofo, sem elevador…"
         className="border-rule w-full rounded border bg-paper p-1.5 text-xs"
@@ -151,7 +155,7 @@ export function Compare({
         return names.length === 2 ? "vocês dois" : (names[0] ?? "—");
       },
     },
-    { label: "notas", cell: (u) => <NoteCell key={u.id} unit={u} /> },
+    { label: "notas", cell: (u) => <NoteField key={u.id} unitId={u.id} note={u.note} /> },
   ];
 
   return (

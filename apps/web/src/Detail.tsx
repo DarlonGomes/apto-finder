@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { StatusExtra, UnitStatus } from "@apto/shared";
 import type { DetailListing } from "./api";
 import { brl, fetchUnitDetail } from "./api";
+import { NoteField } from "./Compare";
 import { CostBar } from "./CostBar";
 import { StatusActions } from "./StatusActions";
 
@@ -205,6 +206,13 @@ export function Detail({
                 onTriage={(status, extra) => onTriage(u.id, status, extra)}
               />
             </div>
+
+            <section>
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                Notas
+              </h2>
+              <NoteField unitId={u.id} note={u.note} />
+            </section>
 
             <section>
               <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">

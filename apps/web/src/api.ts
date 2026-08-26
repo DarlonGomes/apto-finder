@@ -134,6 +134,7 @@ export interface UnitDetail {
   area_m2: number | null;
   parking_spots: number | null;
   status: UnitStatus | null;
+  note: string | null;
   listings: DetailListing[];
   price_history: { listing_id: string; observed_at: string; total_monthly_cents: number }[];
 }
