@@ -8,39 +8,32 @@ import { fetchQuintoAndar } from "./quintoandar.js";
 import { normalizeGlue, normalizeQuintoAndar } from "./normalize.js";
 import { connect, saveListing } from "./db.js";
 import { dedupe } from "./dedupe.js";
+import { loadConfig } from "./config.js";
 
-// Search criteria. Glue's bedrooms/bathrooms/parkingSpaces are exact-match
-// lists, so "2 or more" is spelled "2,3,...". Names need accents (Grajau -> 0
-// results). "Largo do Machado" is not in Glue's taxonomy; Catete covers it.
-const NEIGHBORHOODS = (process.env.NEIGHBORHOODS ?? "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-if (NEIGHBORHOODS.length === 0) {
-  NEIGHBORHOODS.push(
-    "Tijuca", "Grajaú", "Vila Isabel", "Andaraí", "Barra da Tijuca",
-    "Botafogo", "Gávea", "Catete", "Flamengo", "Humaitá", "Lagoa",
-  );
-}
+// Search criteria come from apto.config.json (see config.ts). Glue's
+// bedrooms/bathrooms/parkingSpaces are exact-match lists, so "2 or more" is
+// spelled "2,3,...". Glue neighborhood names need accents (Grajau -> 0 results).
+const cfg = loadConfig();
+const NEIGHBORHOODS = cfg.neighborhoods;
+const PLACE = { city: cfg.city, state: cfg.state };
 
 const listUp = (min: number) => Array.from({ length: 9 - min }, (_, i) => min + i).join(",");
 const FILTER_PARAMS = {
-  bedrooms: listUp(2),
-  bathrooms: listUp(2),
-  parkingSpaces: listUp(1),
+  bedrooms: listUp(cfg.minBedrooms),
+  bathrooms: listUp(cfg.minBathrooms),
+  parkingSpaces: listUp(cfg.minParking),
 };
-const TOTAL_MIN_CENTS = 300_000;
-const TOTAL_MAX_CENTS = 600_000;
-// ponytail: padded cap for Barra, just for validation; remove when done
-const TOTAL_MAX_OVERRIDES: Record<string, number> = { "Barra da Tijuca": 700_000 };
+const TOTAL_MIN_CENTS = cfg.totalMinCents;
+const TOTAL_MAX_CENTS = cfg.totalMaxCents;
+const TOTAL_MAX_OVERRIDES = cfg.totalMaxOverrides;
 
 // QuintoAndar neighbourhood is free text with spelling drift ("Grajau", trailing
 // spaces). Match accent-folded and store OUR canonical spelling, so the SPA
-// filter and the delist query keep working on exact names. Largo do Machado is
-// QA-only (Glue lacks it; Catete stands in there).
+// filter and the delist query keep working on exact names. extraNeighborhoods
+// are QA-only names (Glue's taxonomy lacks them).
 const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").trim().toLowerCase();
 const QA_CANON = new Map(
-  [...NEIGHBORHOODS, "Largo do Machado"].map((n) => [fold(n), n]),
+  [...NEIGHBORHOODS, ...cfg.quintoandar.extraNeighborhoods].map((n) => [fold(n), n]),
 );
 
 const client = await connect();
@@ -68,7 +61,7 @@ async function triageAndSave(l: NormalizedListing | null): Promise<void> {
     outOfBand++;
     return;
   }
-  if (l.acceptsPets === false) {
+  if (cfg.rejectNoPets && l.acceptsPets === false) {
     noPets++;
     return;
   }
@@ -79,7 +72,7 @@ async function triageAndSave(l: NormalizedListing | null): Promise<void> {
 try {
   for (const hood of NEIGHBORHOODS) {
     const maxCents = TOTAL_MAX_OVERRIDES[hood] ?? TOTAL_MAX_CENTS;
-    const { wrappers, totalCount, coverageGap } = await fetchPartition(hood, {
+    const { wrappers, totalCount, coverageGap } = await fetchPartition(PLACE, hood, {
       ...FILTER_PARAMS,
       // rent-only filter; rent <= total, so this is a safe superset of the total cap
       priceMax: String(maxCents / 100),
@@ -91,14 +84,15 @@ try {
     console.log(`${hood}: ${wrappers.length} fetched (totalCount ${totalCount})`);
   }
 
-  // QuintoAndar: one Rio-wide partition (its API is map-bounds only), cheapest
+  // QuintoAndar: one city-wide partition (its API is map-bounds only), cheapest
   // first, fetch stops past the largest neighborhood cap; per-listing caps and
   // the neighborhood scope apply here.
   const qaHits = await fetchQuintoAndar({
-    minBedrooms: 2,
-    minBathrooms: 2,
-    minParking: 1,
+    minBedrooms: cfg.minBedrooms,
+    minBathrooms: cfg.minBathrooms,
+    minParking: cfg.minParking,
     maxTotalCents: Math.max(TOTAL_MAX_CENTS, ...Object.values(TOTAL_MAX_OVERRIDES)),
+    bounds: cfg.quintoandar.bounds,
   });
   let qaInScope = 0;
   for (const h of qaHits) {

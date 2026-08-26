@@ -1,8 +1,8 @@
 // QuintoAndar yellow-pages search API. Spike findings (2026-08-25):
 // - GET www.quintoandar.com.br/api/yellow-pages/v2/search; `return` field list is
 //   REQUIRED (400 without). Unknown requested fields are silently dropped.
-// - Geo is map bounds only (no neighborhood param): one Rio-wide box, callers
-//   post-filter on `neighbourhood`.
+// - Geo is map bounds only (no neighborhood param): one city-wide box from
+//   the config, callers post-filter on `neighbourhood`.
 // - min_bedrooms/min_bathrooms/parking_spaces mean "N or more"; house_type exact.
 // - sorting[criteria]=total_cost&order=asc, so paging stops once totalCost
 //   passes the cap. No server-side price filter exists (cost_range 500s).
@@ -22,10 +22,6 @@ const HEADERS = [
   "-H", "accept-language: pt-BR,pt;q=0.9",
 ];
 
-// Generous box over the whole municipality; the neighborhood post-filter
-// discards Niterói/Baixada spillover.
-const RIO_BOUNDS = { north: "-22.74", south: "-23.10", east: "-43.09", west: "-43.80" };
-
 const RETURN_FIELDS = [
   "id", "rent", "totalCost", "iptuPlusCondominium", "iptu", "homeInsurance",
   "area", "address", "neighbourhood", "city", "bedrooms", "bathrooms",
@@ -37,9 +33,11 @@ export interface QaFilters {
   minBathrooms: number;
   minParking: number;
   maxTotalCents: number; // stop paging past this (cheapest-first sort)
+  // Generous box over the whole city; the neighborhood post-filter discards spillover.
+  bounds: { north: number; south: number; east: number; west: number };
 }
 
-/** All Rio hits up to the total-cost cap, cheapest first. */
+/** All hits inside the box up to the total-cost cap, cheapest first. */
 export async function fetchQuintoAndar(f: QaFilters): Promise<any[]> {
   const hits: any[] = [];
   const maxReais = f.maxTotalCents / 100;
@@ -49,10 +47,10 @@ export async function fetchQuintoAndar(f: QaFilters): Promise<any[]> {
       availability: "any",
       occupancy: "any",
       business_context: "RENT",
-      "map[bounds_north]": RIO_BOUNDS.north,
-      "map[bounds_south]": RIO_BOUNDS.south,
-      "map[bounds_east]": RIO_BOUNDS.east,
-      "map[bounds_west]": RIO_BOUNDS.west,
+      "map[bounds_north]": String(f.bounds.north),
+      "map[bounds_south]": String(f.bounds.south),
+      "map[bounds_east]": String(f.bounds.east),
+      "map[bounds_west]": String(f.bounds.west),
       house_type: "Apartamento",
       min_bedrooms: String(f.minBedrooms),
       min_bathrooms: String(f.minBathrooms),

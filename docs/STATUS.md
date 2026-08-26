@@ -46,9 +46,9 @@ Delisting: DONE, at the end of each successful collector sweep (not the PRD's Wo
 
 Also TODO: PRD's 5-min Workers Cache API on /api/units (skipped, TanStack caches client-side).
 
-## Sweep criteria (apps/collector/src/index.ts)
+## Sweep criteria (apto.config.json)
 
-2+ quartos, 2+ banheiros, 1+ vaga, total R$3.000-6.000 (Barra da Tijuca padded to 7.000, marked `ponytail:` validation-only), drops explicit no-pets and DAILY (temporada) listings. Neighborhoods (accents REQUIRED by the API): Tijuca, Grajaú, Vila Isabel, Andaraí, Barra da Tijuca, Botafogo, Gávea, Catete (stands in for Largo do Machado, which isn't in Glue's taxonomy), Flamengo, Humaitá, Lagoa. Override via `NEIGHBORHOODS` env.
+All criteria live in `apto.config.json` at the repo root (gitignored); `apto.config.example.json` is the committed fallback and holds the current household values, so no file = same sweep as before. Loader: `apps/collector/src/config.ts`. Keys: `city`, `state`, `neighborhoods` (Glue needs accents: Grajau -> 0 results), `quintoandar.bounds` + `quintoandar.extraNeighborhoods` (QA-only names such as Largo do Machado; Catete stands in for it on Glue), `totalMinCents`/`totalMaxCents`, `totalMaxOverrides` per neighborhood (Barra da Tijuca padded to 7.000, validation-only), `minBedrooms`/`minBathrooms`/`minParking`, `rejectNoPets`. DAILY (temporada) listings are always dropped. The old `NEIGHBORHOODS` env override is gone; edit the file instead.
 
 QuintoAndar runs in the same sweep after Glue: one Rio-wide map-bounds fetch (its API has no neighborhood param), cheapest-first, stops paging past the largest cap; hits are matched to the neighborhood list accent-folded (its `neighbourhood` is free text: "Grajau", trailing spaces) and stored under our canonical spelling. "Largo do Machado" is in scope for QuintoAndar only.
 

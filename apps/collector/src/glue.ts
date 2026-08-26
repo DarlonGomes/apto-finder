@@ -17,15 +17,25 @@ const HEADER_ARGS = [
   "-H", `user-agent: ${UA}`,
 ];
 
-function buildUrl(neighborhood: string, from: number, extraParams: Record<string, string>): string {
+export interface Place {
+  city: string;
+  state: string;
+}
+
+function buildUrl(
+  place: Place,
+  neighborhood: string,
+  from: number,
+  extraParams: Record<string, string>,
+): string {
   const p = new URLSearchParams({
     ...extraParams,
     business: "RENTAL",
     listingType: "USED",
     usageTypes: "RESIDENTIAL",
     unitTypes: "APARTMENT",
-    addressCity: "Rio de Janeiro",
-    addressState: "Rio de Janeiro",
+    addressCity: place.city,
+    addressState: place.state,
     addressNeighborhood: neighborhood,
     addressType: "neighborhood",
     includeFields: "search(result(listings),totalCount)", // required; omitting is a 400
@@ -43,6 +53,7 @@ export interface PartitionResult {
 
 /** Fetch every reachable page of one neighborhood partition, politely. */
 export async function fetchPartition(
+  place: Place,
   neighborhood: string,
   extraParams: Record<string, string> = {},
 ): Promise<PartitionResult> {
@@ -50,7 +61,7 @@ export async function fetchPartition(
   let totalCount = 0;
   for (let from = 0; from + PAGE_SIZE <= WINDOW_MAX; from += PAGE_SIZE) {
     if (from > 0) await sleep(RATE_LIMIT_MS);
-    const { status, json } = await curlJson(buildUrl(neighborhood, from, extraParams), HEADER_ARGS);
+    const { status, json } = await curlJson(buildUrl(place, neighborhood, from, extraParams), HEADER_ARGS);
     if (status !== 200) throw new Error(`glue ${neighborhood} from=${from}: HTTP ${status}`);
     totalCount = json?.search?.totalCount ?? totalCount;
     const page: any[] = json?.search?.result?.listings ?? [];

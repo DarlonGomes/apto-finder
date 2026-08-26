@@ -1,0 +1,21 @@
+{
+  "$comment": "Copy to apto.config.json and edit. Missing file = these values. Money is BRL cents.",
+  "city": "Rio de Janeiro",
+  "state": "Rio de Janeiro",
+  "neighborhoods": [
+    "Tijuca", "Grajaú", "Vila Isabel", "Andaraí", "Barra da Tijuca",
+    "Botafogo", "Gávea", "Catete", "Flamengo", "Humaitá", "Lagoa"
+  ],
+  "quintoandar": {
+    "$comment": "QuintoAndar has no neighborhood filter, only a map box; hits are matched to `neighborhoods` (accent-insensitive) plus these extra names that only QuintoAndar knows.",
+    "bounds": { "north": -22.74, "south": -23.10, "east": -43.09, "west": -43.80 },
+    "extraNeighborhoods": ["Largo do Machado"]
+  },
+  "totalMinCents": 300000,
+  "totalMaxCents": 600000,
+  "totalMaxOverrides": { "Barra da Tijuca": 700000 },
+  "minBedrooms": 2,
+  "minBathrooms": 2,
+  "minParking": 1,
+  "rejectNoPets": true
+}
