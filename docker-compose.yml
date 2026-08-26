@@ -1,0 +1,17 @@
+# Local Postgres for development. Production uses Neon; the app does not care.
+#   docker compose up -d
+#   pnpm --filter collector migrate
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: apto
+      POSTGRES_PASSWORD: apto
+      POSTGRES_DB: apto
+    ports:
+      # Host port is configurable so a local Postgres on 5432 does not clash.
+      - "${APTO_PG_PORT:-5432}:5432"
+    volumes:
+      - apto-pg:/var/lib/postgresql/data
+volumes:
+  apto-pg:

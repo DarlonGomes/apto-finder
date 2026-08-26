@@ -11,6 +11,10 @@ Last updated: 2026-08-26.
 - Email: Email Routing ENABLED on tiersfc.com on 2026-08-26 via API (zone `7a9cd301aa183d3d896bde79a159c427`; MX/SPF/DKIM added, zone had no MX before). Destination addresses: gomesdarlon@icloud.com verified, gomesamanda.stn@gmail.com added, verification pending until she clicks Cloudflare's email. Sends to verified destinations are free on any plan.
 - DB: Neon Postgres (sa-east-1). Worker secret is named `DATABASE_URL_POOLED` (code accepts `DATABASE_URL` too). An `ACCESS_KEY` secret exists on the worker but nothing uses it yet (reserved for the collector cache-purge webhook).
 
+## Local development (any Postgres)
+
+`docker compose up -d` (Postgres 16; host port via `APTO_PG_PORT`, default 5432), copy `.env.example` to `.env` and `apps/worker/.dev.vars.example` to `apps/worker/.dev.vars`, then `pnpm --filter collector migrate`, `pnpm --filter collector sweep`, `pnpm dev:worker`. The collector and migrations use `pg` (node-postgres) everywhere, which also connects to Neon over TCP. The Worker picks its driver in `apps/worker/src/db.ts`: Neon HTTP for `*.neon.tech` URLs, `pg` over TCP otherwise (override with `DB_DRIVER`). Compatibility date 2026-08-25 so `nodejs_compat` is on by default (needed by `pg`). Verified 2026-08-26: full sweep + every API route against a local container, and the Neon path through the same adapter.
+
 ## Deploy flow
 
 Work on `dev`, merge to `main`, Cloudflare Workers Builds deploys automatically.
@@ -75,7 +79,7 @@ Hourly sweep runs via systemd user timer `apto-sweep.timer` (SET UP AND ACTIVE s
 - Default shell node is v20; everything needs v22: prefix `PATH="$HOME/.nvm/versions/node/v22.18.0/bin:$PATH"`.
 - rtk aliases grep/cat/head; NEVER redirect their output to files (writes decorated text). Use node or Read/Write tools.
 - `.env` at root: `DATABASE_URL_POOLED` + `DATABASE_URL_UNPOOLED` (no plain `DATABASE_URL`). `apps/worker/.dev.vars` has `DATABASE_URL=` for wrangler dev.
-- Collector scripts load env via `node --env-file=../../.env`.
+- Collector scripts load env via `node --env-file=../../.env`. Vars already in the process env win over the file, so `DATABASE_URL=... pnpm --filter collector sweep` targets another DB without editing `.env`.
 
 ## Commands
 

@@ -1,10 +1,11 @@
 import { Hono } from "hono";
-import { neon } from "@neondatabase/serverless";
 import { buildDigest } from "./digest";
+import { makeSql } from "./db";
 
 type Bindings = {
   DATABASE_URL?: string;
   DATABASE_URL_POOLED?: string;
+  DB_DRIVER?: "neon" | "pg"; // default: neon for *.neon.tech URLs, pg otherwise
   EMAIL?: SendEmail;
   DIGEST_TO?: string; // comma-separated verified destination addresses
   DIGEST_FROM?: string;
@@ -13,7 +14,8 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-const db = (c: { env: Bindings }) => neon((c.env.DATABASE_URL ?? c.env.DATABASE_URL_POOLED)!);
+const db = (c: { env: Bindings }) =>
+  makeSql((c.env.DATABASE_URL ?? c.env.DATABASE_URL_POOLED)!, c.env.DB_DRIVER);
 
 const fillThumb = (t: string | null | undefined, dim = "360x240"): string | null =>
   t
@@ -325,7 +327,7 @@ app.get("/api/neighborhoods", async (c) => {
 // Digest: GET /api/digest previews the email (or "nada mudou"); ?send=1 sends it now.
 // The daily cron below calls the same thing.
 async function runDigest(env: Bindings, send: boolean, hours = 25, test = false): Promise<string> {
-  const sql = neon((env.DATABASE_URL ?? env.DATABASE_URL_POOLED)!);
+  const sql = makeSql((env.DATABASE_URL ?? env.DATABASE_URL_POOLED)!, env.DB_DRIVER);
   let mail = await buildDigest(sql, env.APP_URL ?? "https://apto-finder.gomesdarlon.workers.dev", hours);
   // ?test=1: prove delivery works even when nothing changed
   if (!mail && test)

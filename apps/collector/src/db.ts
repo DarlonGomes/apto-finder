@@ -1,12 +1,14 @@
 // Upsert normalized listings and append price_history on total change (PRD 7.4).
 
-import { Client } from "@neondatabase/serverless";
+import pg from "pg";
+
+export type Client = pg.Client;
 import type { NormalizedListing } from "@apto/shared";
 
 export async function connect(): Promise<Client> {
   const url = process.env.DATABASE_URL ?? process.env.DATABASE_URL_POOLED;
   if (!url) throw new Error("DATABASE_URL is not set");
-  const client = new Client({ connectionString: url });
+  const client = new pg.Client({ connectionString: url });
   await client.connect();
   return client;
 }

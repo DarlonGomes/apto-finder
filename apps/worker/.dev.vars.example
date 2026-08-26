@@ -1,0 +1,3 @@
+# `wrangler dev` reads this. Local Postgres from docker-compose.yml by default;
+# a Neon URL works too (the driver is picked from the host name).
+DATABASE_URL=postgres://apto:apto@localhost:5432/apto

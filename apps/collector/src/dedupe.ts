@@ -11,7 +11,7 @@
 //   geohash prefixes. ponytail: fine to ~10k active listings, revisit after.
 // Group, never delete: clusters re-point unit_id; listings are untouched.
 
-import type { Client } from "@neondatabase/serverless";
+import type { Client } from "./db.js";
 
 export interface DedupeRow {
   id: string;

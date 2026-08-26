@@ -5,3 +5,5 @@ dist/
 .env
 *.local
 spike-out/
+apto.config.json
+docs/private/

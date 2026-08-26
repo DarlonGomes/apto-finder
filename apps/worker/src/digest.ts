@@ -4,9 +4,7 @@
 // ponytail: fixed 25h window (cron is daily), no run bookkeeping; a duplicate
 // line on a slow day beats a missed one.
 
-import type { NeonQueryFunction } from "@neondatabase/serverless";
-
-type Sql = NeonQueryFunction<false, false>;
+import type { Sql } from "./db";
 
 const brl = (cents: number) =>
   (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });

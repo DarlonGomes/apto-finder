@@ -3,7 +3,7 @@
 // ponytail: no down migrations, no checksums; add a tool if this ever hurts.
 
 import { readdir, readFile } from "node:fs/promises";
-import { Client } from "@neondatabase/serverless";
+import pg from "pg";
 
 const url =
   process.env.DATABASE_URL_UNPOOLED ??
@@ -17,7 +17,7 @@ if (!url) {
 const dir = new URL("../../../db/migrations/", import.meta.url).pathname;
 const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
 
-const client = new Client({ connectionString: url });
+const client = new pg.Client({ connectionString: url });
 await client.connect();
 try {
   await client.query(

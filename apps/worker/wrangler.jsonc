@@ -2,7 +2,8 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "apto-finder",
   "main": "src/index.ts",
-  "compatibility_date": "2026-08-01",
+  // 2026-08-04+ turns nodejs_compat on by default, which `pg` needs for local Postgres.
+  "compatibility_date": "2026-08-25",
   // SPA build output served as static assets; /api/* always hits the Worker
   "assets": {
     "directory": "../web/dist",
