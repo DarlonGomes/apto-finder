@@ -33,7 +33,11 @@ app.get("/api/meta", async (c) => {
 // The one endpoint that matters (PRD 8).
 app.get("/api/units", async (c) => {
   const q = c.req.query();
-  const where: string[] = ["l.delisted_at IS NULL"];
+  // Liked+ units stay visible after every listing delists (disappearing is signal);
+  // anything else must have an active listing.
+  const where: string[] = [
+    "(l.delisted_at IS NULL OR s.status IN ('liked','visit_booked','proposal_made'))",
+  ];
   const params: unknown[] = [];
   const add = (clause: string, value: unknown) => {
     params.push(value);
@@ -96,17 +100,21 @@ app.get("/api/units", async (c) => {
   const rows: any[] = await sql.query(
     `
     WITH cheapest AS (
+      -- cheapest active listing; falls back to the cheapest delisted one when
+      -- the whole unit is off the market (then c/l.delisted_at is set)
       SELECT DISTINCT ON (unit_id) *
-      FROM listings WHERE delisted_at IS NULL AND unit_id IS NOT NULL
-      ORDER BY unit_id, total_monthly_cents ASC
+      FROM listings WHERE unit_id IS NOT NULL
+      ORDER BY unit_id, (delisted_at IS NOT NULL), total_monthly_cents ASC
     ), agg AS (
-      SELECT unit_id, count(*)::int AS listing_count,
-             (max(total_monthly_cents) - min(total_monthly_cents))::int AS price_spread_cents,
+      SELECT unit_id,
+             count(*) FILTER (WHERE delisted_at IS NULL)::int AS listing_count,
+             (max(total_monthly_cents) FILTER (WHERE delisted_at IS NULL)
+              - min(total_monthly_cents) FILTER (WHERE delisted_at IS NULL))::int AS price_spread_cents,
              min(first_seen_at) AS first_seen,
              jsonb_agg(jsonb_build_object(
                'source', source, 'url', url, 'total_monthly_cents', total_monthly_cents
-             ) ORDER BY total_monthly_cents) AS links
-      FROM listings WHERE delisted_at IS NULL GROUP BY unit_id
+             ) ORDER BY total_monthly_cents) FILTER (WHERE delisted_at IS NULL) AS links
+      FROM listings GROUP BY unit_id
     )
     SELECT u.id, u.neighborhood, u.street,
       c.bedrooms, c.bathrooms, c.area_m2, c.parking_spots, c.accepts_pets, c.pets_evidence,
@@ -124,6 +132,13 @@ app.get("/api/units", async (c) => {
       s.status, s.actor AS status_actor, s.visit_at AS status_visit_at,
       s.amount_cents AS status_amount_cents, s.note AS status_note,
       lb.liked_by, n.note AS unit_note,
+      l.delisted_at,
+      (SELECT jsonb_build_object('at', ph.observed_at, 'from_cents', ph.prev)
+       FROM (SELECT observed_at, total_monthly_cents,
+                    lag(total_monthly_cents) OVER (ORDER BY observed_at) AS prev
+             FROM price_history WHERE listing_id = c.id) ph
+       WHERE ph.prev IS NOT NULL AND ph.prev <> ph.total_monthly_cents
+       ORDER BY ph.observed_at DESC LIMIT 1) AS last_change,
       count(*) OVER ()::int AS total_matching
     FROM cheapest c
     JOIN listings l ON l.id = c.id
@@ -167,7 +182,7 @@ app.get("/api/units", async (c) => {
     },
     listing_count: r.listing_count,
     links: r.links ?? [],
-    price_spread_cents: r.price_spread_cents,
+    price_spread_cents: r.price_spread_cents ?? 0,
     days_listed: r.days_listed,
     price_change_pct: r.price_change_pct,
     thumbnail: r.qa_image ? qaImg(r.qa_image) : fillThumb(r.thumb_template),
@@ -178,6 +193,8 @@ app.get("/api/units", async (c) => {
     status_note: r.status_note ?? null,
     liked_by: r.liked_by ?? [],
     note: r.unit_note ?? null,
+    delisted_at: r.delisted_at ?? null,
+    last_change: r.last_change ?? null,
   }));
 
   const last = rows[rows.length - 1];

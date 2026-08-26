@@ -194,6 +194,9 @@ export function Compare({
                     <button onClick={() => onOpen(u.id)} className="text-left text-xs text-muted">
                       <span className="font-semibold text-ink">{u.neighborhood}</span>
                       {u.street && <span className="block truncate">{u.street}</span>}
+                      {u.delisted_at && (
+                        <span className="block font-medium text-flag">saiu do ar</span>
+                      )}
                     </button>
                   </th>
                 ))}

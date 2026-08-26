@@ -78,6 +78,8 @@ export interface UnitCard {
   status_note: string | null; // proposal_made: optional context
   liked_by: string[]; // every actor who ever liked the unit (compare view)
   note: string | null; // shared per-unit note from unit_notes
+  delisted_at: string | null; // set when every listing is off the market (liked+ units only)
+  last_change: { at: string; from_cents: number } | null; // most recent price change of the cheapest listing
 }
 
 /** Extra payload for PUT /api/units/:id/status, per status. */

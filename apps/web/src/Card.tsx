@@ -59,7 +59,18 @@ export function Card({
     ["🏷️", SOURCE_LABELS[unit.cheapest.source] ?? unit.cheapest.source],
   ];
 
+  // Liked+ units keep showing after delisting and flag recent price moves (7 days).
+  const shortlisted = ["liked", "visit_booked", "proposal_made"].includes(unit.status ?? "");
+  const dm = (iso: string) =>
+    new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  const move =
+    shortlisted &&
+    unit.last_change &&
+    Date.now() - Date.parse(unit.last_change.at) < 7 * 86_400_000 &&
+    unit.cheapest.total_monthly_cents - unit.last_change.from_cents;
   const flags = [
+    unit.delisted_at && `saiu do ar em ${dm(unit.delisted_at)}`,
+    move && `${move < 0 ? "↓" : "↑"} ${brl(Math.abs(move))} em ${dm(unit.last_change!.at)}`,
     unit.listing_count > 1 && `${unit.listing_count} anúncios · menor preço`,
     unit.price_change_pct != null && unit.price_change_pct < 0 && `${unit.price_change_pct}%`,
     unit.days_listed >= 30 && `${unit.days_listed} dias no ar`,
