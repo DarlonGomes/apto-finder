@@ -11,6 +11,19 @@
   },
   "observability": {
     "enabled": true
+  },
+  // Daily digest: 08:00 BRT (11:00 UTC). Emails only when a shortlisted unit changed.
+  "triggers": { "crons": ["0 11 * * *"] },
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "allowed_destination_addresses": ["gomesdarlon@icloud.com", "gomesamanda.stn@gmail.com"]
+    }
+  ],
+  "vars": {
+    "DIGEST_TO": "gomesdarlon@icloud.com,gomesamanda.stn@gmail.com",
+    "DIGEST_FROM": "apto@tiersfc.com",
+    "APP_URL": "https://apto-finder.gomesdarlon.workers.dev"
   }
   // DATABASE_URL is a secret: wrangler secret put DATABASE_URL
   // For local dev, put it in apps/worker/.dev.vars (gitignored)

@@ -1,9 +1,14 @@
 import { Hono } from "hono";
 import { neon } from "@neondatabase/serverless";
+import { buildDigest } from "./digest";
 
 type Bindings = {
   DATABASE_URL?: string;
   DATABASE_URL_POOLED?: string;
+  EMAIL?: SendEmail;
+  DIGEST_TO?: string; // comma-separated verified destination addresses
+  DIGEST_FROM?: string;
+  APP_URL?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -317,4 +322,36 @@ app.get("/api/neighborhoods", async (c) => {
   return c.json(rows);
 });
 
-export default app;
+// Digest: GET /api/digest previews the email (or "nada mudou"); ?send=1 sends it now.
+// The daily cron below calls the same thing.
+async function runDigest(env: Bindings, send: boolean, hours = 25): Promise<string> {
+  const sql = neon((env.DATABASE_URL ?? env.DATABASE_URL_POOLED)!);
+  const mail = await buildDigest(sql, env.APP_URL ?? "https://apto-finder.gomesdarlon.workers.dev", hours);
+  if (!mail) return "nada mudou nos favoritos";
+  if (send) {
+    if (!env.EMAIL || !env.DIGEST_TO || !env.DIGEST_FROM) throw new Error("email binding/vars missing");
+    await env.EMAIL.send({
+      from: { name: "apto-finder", email: env.DIGEST_FROM },
+      to: env.DIGEST_TO.split(",").map((s) => s.trim()),
+      subject: mail.subject,
+      text: mail.text,
+    });
+  }
+  return `${mail.subject}
+
+${mail.text}`;
+}
+
+app.get("/api/digest", async (c) => {
+  // ?hours= widens the preview window (max 30 days); handy for "what changed this week"
+  const hours = Math.min(Number(c.req.query("hours") ?? 25) || 25, 24 * 30);
+  const out = await runDigest(c.env, c.req.query("send") === "1", hours);
+  return c.text(out);
+});
+
+export default {
+  fetch: app.fetch,
+  scheduled: (_ctrl: ScheduledController, env: Bindings, ctx: ExecutionContext) => {
+    ctx.waitUntil(runDigest(env, true).then((r) => console.log("digest:", r.split("\n")[0])));
+  },
+};
