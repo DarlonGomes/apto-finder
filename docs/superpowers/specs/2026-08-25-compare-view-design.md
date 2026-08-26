@@ -1,6 +1,6 @@
 # Compare view
 
-2026-08-25. Side-by-side matrix of shortlisted units so Darlon and Amanda can pick the apartment. PRD scope rule check: this is the "spot a good one sooner" endgame, it turns 8 shortlisted units into 1 lease.
+2026-08-25. Side-by-side matrix of shortlisted units so the two of us can pick the apartment. PRD scope rule check: this is the "spot a good one sooner" endgame, it turns 8 shortlisted units into 1 lease.
 
 ## Population
 
