@@ -8,7 +8,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { UnitCard } from "@apto/shared";
 import { brl, fetchUnits, type Filters } from "./api";
-import { STATIONS } from "./stations";
+import { STATION_ICON, STATIONS } from "./stations";
 
 // Walk the cursor so the map shows the whole result set, not the first page.
 async function fetchAll(f: Filters): Promise<UnitCard[]> {
@@ -32,15 +32,15 @@ export function MiniMap({ lat, lng }: { lat: number; lng: number }) {
       attribution: "© OpenStreetMap",
       maxZoom: 19,
     }).addTo(m);
-    for (const [name, sLat, sLng] of STATIONS)
+    for (const [name, sLat, sLng, kind] of STATIONS)
       L.circleMarker([sLat, sLng], {
-        radius: 5,
-        color: "#6B7280",
+        radius: kind === "metro" ? 5 : 4,
+        color: kind === "metro" ? "#6B7280" : "#A8ADB5",
         fillColor: "#FAFAF7",
         fillOpacity: 1,
         weight: 2,
       })
-        .bindTooltip(`🚇 ${name}`)
+        .bindTooltip(`${STATION_ICON[kind]} ${name}`)
         .addTo(m);
     L.circleMarker([lat, lng], {
       radius: 9,
@@ -78,15 +78,15 @@ export default function MapView({
       attribution: "© OpenStreetMap",
       maxZoom: 19,
     }).addTo(m);
-    for (const [name, lat, lng] of STATIONS)
+    for (const [name, lat, lng, kind] of STATIONS)
       L.circleMarker([lat, lng], {
-        radius: 4,
-        color: "#6B7280",
+        radius: kind === "metro" ? 4 : 3,
+        color: kind === "metro" ? "#6B7280" : "#A8ADB5",
         fillColor: "#FAFAF7",
         fillOpacity: 1,
         weight: 2,
       })
-        .bindTooltip(`🚇 ${name}`)
+        .bindTooltip(`${STATION_ICON[kind]} ${name}`)
         .addTo(m);
     pins.current = L.layerGroup().addTo(m);
     map.current = m;

@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import type { StatusExtra, UnitCard, UnitStatus } from "@apto/shared";
 import { brl } from "./api";
 import { CostBar } from "./CostBar";
-import { fmtDist, nearestStation } from "./stations";
+import { fmtDist, nearestStation, STATION_ICON } from "./stations";
 import { StatusActions } from "./StatusActions";
 
 const SWIPE_THRESHOLD = 80;
@@ -59,7 +59,9 @@ export function Card({
     ["🚗", `${unit.parking_spots ?? 0} vaga${(unit.parking_spots ?? 0) > 1 ? "s" : ""}`],
     ["🐾", `aceita pet: ${pets}`],
     ["🏷️", SOURCE_LABELS[unit.cheapest.source] ?? unit.cheapest.source],
-    ...(metro ? [["🚇", `${fmtDist(metro.meters)} · ${metro.name}`] as [string, string]] : []),
+    ...(metro
+      ? [[STATION_ICON[metro.kind], `${fmtDist(metro.meters)} · ${metro.name}`] as [string, string]]
+      : []),
   ];
 
   // Liked+ units keep showing after delisting and flag recent price moves (7 days).

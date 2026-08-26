@@ -8,7 +8,7 @@ import type { DetailListing } from "./api";
 import { brl, fetchUnitDetail } from "./api";
 import { NoteField } from "./Compare";
 import { CostBar } from "./CostBar";
-import { fmtDist, nearestStation } from "./stations";
+import { fmtStation, nearestStation } from "./stations";
 import { StatusActions } from "./StatusActions";
 
 const MiniMap = lazy(() => import("./MapView").then((m) => ({ default: m.MiniMap })));
@@ -223,13 +223,7 @@ export function Detail({
                   Localização
                 </h2>
                 <p className="mb-2 flex items-center justify-between text-sm">
-                  <span>
-                    <span aria-hidden="true">🚇</span>{" "}
-                    {(() => {
-                      const s = nearestStation(cheapest.lat, cheapest.lng);
-                      return `${fmtDist(s.meters)} · ${s.name}`;
-                    })()}
-                  </span>
+                  <span>{fmtStation(nearestStation(cheapest.lat, cheapest.lng))}</span>
                   <a
                     href={`https://www.google.com/maps?q=${cheapest.lat},${cheapest.lng}`}
                     target="_blank"
