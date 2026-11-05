@@ -18,6 +18,7 @@ const STATUS_LABEL: Record<string, string> = {
 export async function buildDigest(
   sql: Sql,
   appUrl: string,
+  search: { id: string; neighborhoods: string[] },
   hours = 25,
 ): Promise<{ subject: string; text: string } | null> {
   const window = `${hours} hours`;
@@ -28,7 +29,7 @@ export async function buildDigest(
       NOT EXISTS (SELECT 1 FROM listings a WHERE a.unit_id = u.id AND a.delisted_at IS NULL) AS unit_gone
     FROM units u
     JOIN LATERAL (
-      SELECT status FROM status_events WHERE unit_id = u.id ORDER BY id DESC LIMIT 1
+      SELECT status FROM status_events WHERE unit_id = u.id AND search_id = $2 ORDER BY id DESC LIMIT 1
     ) s ON s.status IN ('liked','visit_booked','proposal_made')
     JOIN listings l ON l.unit_id = u.id
     LEFT JOIN LATERAL (
@@ -42,11 +43,11 @@ export async function buildDigest(
     ) ch ON true
     WHERE ch.prev IS NOT NULL OR l.delisted_at > now() - $1::interval
     ORDER BY u.neighborhood, u.street`,
-    [window],
+    [window, search.id],
   );
 
   const place = (r: any) => `${r.neighborhood}${r.street ? ` · ${r.street}` : ""}`;
-  const link = (r: any) => `${appUrl}/?unit=${r.id}`;
+  const link = (r: any) => `${appUrl}/?search=${search.id}&unit=${r.id}`;
 
   const priceLines = rows
     .filter((r) => r.prev != null)
@@ -59,8 +60,9 @@ export async function buildDigest(
   if (priceLines.length === 0 && goneLines.length === 0) return null;
 
   const [{ n: fresh }] = (await sql.query(
-    `SELECT count(DISTINCT unit_id)::int AS n FROM listings WHERE first_seen_at > now() - $1::interval`,
-    [window],
+    `SELECT count(DISTINCT unit_id)::int AS n FROM listings
+     WHERE first_seen_at > now() - $1::interval AND neighborhood = ANY($2)`,
+    [window, search.neighborhoods],
   )) as any[];
 
   const today = new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });

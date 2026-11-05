@@ -96,3 +96,110 @@ export interface UnitsResponse {
   next_cursor: string | null;
   total_matching: number;
 }
+
+// ---- Accounts and searches ------------------------------------------------
+
+/** Rio bairros offered in the search picklist. Spelling matches Glue's taxonomy
+ *  (accents matter: "Grajau" returns nothing). Largo do Machado is QuintoAndar-only. */
+export const RIO_NEIGHBORHOODS = [
+  // Zona Sul
+  "Botafogo", "Catete", "Copacabana", "Cosme Velho", "Flamengo", "Gávea", "Glória",
+  "Humaitá", "Ipanema", "Jardim Botânico", "Lagoa", "Laranjeiras", "Largo do Machado",
+  "Leblon", "Leme", "São Conrado", "Urca",
+  // Centro
+  "Centro", "Lapa", "Santa Teresa", "Santo Cristo", "Gamboa", "Saúde",
+  // Zona Norte
+  "Andaraí", "Grajaú", "Maracanã", "Praça da Bandeira", "Tijuca", "Vila Isabel",
+  "São Cristóvão", "Méier", "Engenho Novo", "Lins de Vasconcelos", "Cachambi",
+  "Todos os Santos", "Del Castilho", "Pilares", "Penha", "Olaria", "Ramos",
+  "Ilha do Governador", "Jardim Guanabara", "Freguesia (Ilha do Governador)",
+  "Vila da Penha", "Vista Alegre", "Irajá", "Madureira",
+  // Zona Oeste
+  "Barra da Tijuca", "Recreio dos Bandeirantes", "Jacarepaguá",
+  "Freguesia (Jacarepaguá)", "Pechincha", "Taquara", "Anil", "Itanhangá",
+  "Joá", "Vargem Grande", "Vargem Pequena", "Camorim", "Curicica",
+  "Campo Grande", "Bangu", "Realengo",
+] as const;
+
+/** Building/unit facilities a search can require, mapped to each source's
+ *  amenity codes (Glue `listing.amenities`, QuintoAndar `amenities`). A unit
+ *  matches when its cheapest listing carries any of the codes. */
+export const FACILITIES: Record<string, { label: string; codes: string[] }> = {
+  elevator: { label: "Elevador", codes: ["ELEVATOR", "ELEVADOR"] },
+  concierge: { label: "Portaria 24h", codes: ["CONCIERGE_24H", "WATCHMAN", "PORTARIA_24H"] },
+  pool: { label: "Piscina", codes: ["POOL", "ADULT_POOL", "PISCINA"] },
+  gym: { label: "Academia", codes: ["GYM", "FITNESS_ROOM", "ACADEMIA"] },
+  party_hall: { label: "Salão de festas", codes: ["PARTY_HALL", "SALAO_DE_FESTAS"] },
+  playground: { label: "Playground", codes: ["PLAYGROUND"] },
+  bbq: { label: "Churrasqueira", codes: ["BARBECUE_GRILL", "CHURRASQUEIRA"] },
+  balcony: { label: "Varanda", codes: ["BALCONY", "VARANDA", "VARANDA_GOURMET"] },
+  air_conditioning: { label: "Ar-condicionado", codes: ["AIR_CONDITIONING", "AR_CONDICIONADO"] },
+  gated: { label: "Condomínio fechado", codes: ["GATED_COMMUNITY"] },
+};
+
+export interface Search {
+  id: string;
+  name: string;
+  city: string;
+  neighborhoods: string[];
+  total_min_cents: number | null;
+  total_max_cents: number | null;
+  bedrooms_min: number | null;
+  bathrooms_min: number | null;
+  parking_min: number | null;
+  /** required = confirmed pet-friendly only; unknown_ok = drop explicit "no"; any = ignore */
+  pets: "required" | "unknown_ok" | "any";
+  furnished: "any" | "yes" | "no";
+  facilities: string[];
+  members: { email: string; first_name: string | null }[];
+}
+
+export type SearchInput = Omit<Search, "id" | "city" | "members">;
+
+export interface Me {
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  home_neighborhood: string | null;
+  home_city: string | null;
+  referral: string | null;
+  searches: Search[];
+}
+
+const optInt = (v: unknown, max: number): number | null | undefined =>
+  v == null || v === "" ? null : Number.isInteger(v) && (v as number) >= 0 && (v as number) <= max ? (v as number) : undefined;
+
+/** Trust-boundary check for search criteria from the client. Returns the
+ *  cleaned input or an error message (Portuguese, shown as-is in the UI). */
+export function validateSearch(b: any): SearchInput | string {
+  if (!b || typeof b !== "object") return "dados inválidos";
+  const hoods: string[] = Array.isArray(b.neighborhoods) ? [...new Set(b.neighborhoods as string[])] : [];
+  if (hoods.length === 0) return "escolha ao menos um bairro";
+  if (!hoods.every((h) => (RIO_NEIGHBORHOODS as readonly string[]).includes(h))) return "bairro desconhecido";
+  const min = optInt(b.total_min_cents, 100_000_000);
+  const max = optInt(b.total_max_cents, 100_000_000);
+  const beds = optInt(b.bedrooms_min, 10);
+  const baths = optInt(b.bathrooms_min, 10);
+  const parking = optInt(b.parking_min, 10);
+  if ([min, max, beds, baths, parking].includes(undefined)) return "número inválido";
+  if (min != null && max != null && min > max) return "valor mínimo maior que o máximo";
+  const pets = b.pets ?? "any";
+  if (!["required", "unknown_ok", "any"].includes(pets)) return "opção de pets inválida";
+  const furnished = b.furnished ?? "any";
+  if (!["any", "yes", "no"].includes(furnished)) return "opção de mobília inválida";
+  const facilities: string[] = Array.isArray(b.facilities) ? [...new Set(b.facilities as string[])] : [];
+  if (!facilities.every((f) => f in FACILITIES)) return "comodidade desconhecida";
+  const name = typeof b.name === "string" && b.name.trim() ? b.name.trim().slice(0, 60) : "Minha busca";
+  return {
+    name, neighborhoods: hoods,
+    total_min_cents: min!, total_max_cents: max!,
+    bedrooms_min: beds!, bathrooms_min: baths!, parking_min: parking!,
+    pets, furnished, facilities,
+  };
+}
+
+/** Lowercased, trimmed email or null when it doesn't look like one. */
+export const normEmail = (v: unknown): string | null => {
+  const e = typeof v === "string" ? v.trim().toLowerCase() : "";
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && e.length <= 254 ? e : null;
+};

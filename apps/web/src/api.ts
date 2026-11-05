@@ -1,4 +1,11 @@
-import type { Source, StatusExtra, UnitsResponse, UnitStatus } from "@apto/shared";
+import type { Me, SearchInput, Source, StatusExtra, UnitsResponse, UnitStatus } from "@apto/shared";
+
+// Every unit call runs inside the active search (set by the Gate before App mounts).
+let searchId = "";
+export const setActiveSearch = (id: string) => {
+  searchId = id;
+};
+const scoped = (path: string) => `${path}${path.includes("?") ? "&" : "?"}search=${searchId}`;
 
 export interface Filters {
   total_min: number | null; // cents
@@ -17,8 +24,8 @@ export interface Filters {
 export const DEFAULT_FILTERS: Filters = {
   total_min: null,
   total_max: null,
-  bedrooms_min: 2,
-  parking_min: 1,
+  bedrooms_min: 1,
+  parking_min: 0,
   area_min: null,
   pets: "unknown_ok",
   neighborhoods: [],
@@ -48,8 +55,8 @@ export function filtersFromParams(p: URLSearchParams): Filters {
   return {
     total_min: p.get("total_min") ? Number(p.get("total_min")) : null,
     total_max: p.get("total_max") ? Number(p.get("total_max")) : null,
-    bedrooms_min: Number(p.get("bedrooms_min") ?? 2),
-    parking_min: Number(p.get("parking_min") ?? 1),
+    bedrooms_min: Number(p.get("bedrooms_min") ?? 1),
+    parking_min: Number(p.get("parking_min") ?? 0),
     area_min: p.get("area_min") ? Number(p.get("area_min")) : null,
     pets: (p.get("pets") as Filters["pets"]) ?? "unknown_ok",
     neighborhoods: p.get("neighborhoods")?.split(",").filter(Boolean) ?? [],
@@ -61,26 +68,48 @@ export function filtersFromParams(p: URLSearchParams): Filters {
 }
 
 async function json<T>(res: Response): Promise<T> {
-  if (!res.ok) throw new Error(`${res.status}`);
+  // Session gone: reload so the Gate shows the login (a wrong OTP is a 401 too, not that).
+  if (res.status === 401 && !res.url.includes("/api/auth/")) location.reload();
+  if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `${res.status}`);
   return res.json();
 }
+
+const send = (method: string, path: string, body?: unknown) =>
+  fetch(path, {
+    method,
+    headers: { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  }).then((r) => json<any>(r));
+
+/** null = not logged in */
+export const fetchMe = (): Promise<Me | null> =>
+  fetch("/api/me").then((r) => (r.status === 401 ? null : json<Me>(r)));
+export const startLogin = (email: string) => send("POST", "/api/auth/start", { email });
+export const verifyLogin = (email: string, code: string) => send("POST", "/api/auth/verify", { email, code });
+export const logout = () => send("POST", "/api/auth/logout");
+export const putProfile = (p: Partial<Me>) => send("PUT", "/api/me", p);
+export const createSearch = (s: SearchInput & { invite: string[] }): Promise<{ id: string }> =>
+  send("POST", "/api/searches", s);
+export const updateSearch = (id: string, s: SearchInput) => send("PUT", `/api/searches/${id}`, s);
+export const inviteMember = (id: string, email: string) =>
+  send("POST", `/api/searches/${id}/members`, { email });
 
 export function fetchUnits(f: Filters, cursor?: string | null, limit = 30): Promise<UnitsResponse> {
   const p = filtersToParams(f);
   p.set("limit", String(limit));
   if (cursor) p.set("cursor", cursor);
-  return fetch(`/api/units?${p}`).then((r) => json<UnitsResponse>(r));
+  return fetch(scoped(`/api/units?${p}`)).then((r) => json<UnitsResponse>(r));
 }
 
 // Compare view: every liked+ unit, no other filters, cheapest first.
 export function fetchCompareUnits(): Promise<UnitsResponse> {
   return fetch(
-    "/api/units?status=liked,visit_booked,proposal_made&pets=any&sort=total_asc&limit=100",
+    scoped("/api/units?status=liked,visit_booked,proposal_made&pets=any&sort=total_asc&limit=100"),
   ).then((r) => json<UnitsResponse>(r));
 }
 
 export function putNote(unitId: string, note: string): Promise<unknown> {
-  return fetch(`/api/units/${unitId}/note`, {
+  return fetch(scoped(`/api/units/${unitId}/note`), {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ note }),
@@ -92,7 +121,7 @@ export function putStatus(
   status: UnitStatus | null,
   extra?: StatusExtra,
 ): Promise<unknown> {
-  return fetch(`/api/units/${unitId}/status`, {
+  return fetch(scoped(`/api/units/${unitId}/status`), {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ status, ...extra }),
@@ -142,11 +171,11 @@ export interface UnitDetail {
 }
 
 export function fetchUnitDetail(id: string): Promise<UnitDetail> {
-  return fetch(`/api/units/${id}`).then((r) => json<UnitDetail>(r));
+  return fetch(scoped(`/api/units/${id}`)).then((r) => json<UnitDetail>(r));
 }
 
 export function fetchNeighborhoods(): Promise<{ neighborhood: string; units: number }[]> {
-  return fetch("/api/neighborhoods").then((r) => json(r));
+  return fetch(scoped("/api/neighborhoods")).then((r) => json(r));
 }
 
 export function fetchMeta(): Promise<{ active_listings: number; units: number; last_sweep_at: string | null }> {

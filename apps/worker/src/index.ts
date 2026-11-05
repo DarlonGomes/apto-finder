@@ -1,21 +1,21 @@
 import { Hono } from "hono";
+import { FACILITIES } from "@apto/shared";
 import { buildDigest } from "./digest";
-import { makeSql } from "./db";
+import { dbFor, type Bindings } from "./db";
+import { account, auth, memberSearch, requireUser, sendMail, type Env } from "./account";
 
-type Bindings = {
-  DATABASE_URL?: string;
-  DATABASE_URL_POOLED?: string;
-  DB_DRIVER?: "neon" | "pg"; // default: neon for *.neon.tech URLs, pg otherwise
-  EMAIL?: SendEmail;
-  DIGEST_TO?: string; // comma-separated verified destination addresses
-  DIGEST_FROM?: string;
-  APP_URL?: string;
-};
+const app = new Hono<Env>();
 
-const app = new Hono<{ Bindings: Bindings }>();
+const db = (c: { env: Bindings }) => dbFor(c.env);
 
-const db = (c: { env: Bindings }) =>
-  makeSql((c.env.DATABASE_URL ?? c.env.DATABASE_URL_POOLED)!, c.env.DB_DRIVER);
+// Everything under /api needs a session except the login endpoints.
+app.use("/api/*", (c, next) => (c.req.path.startsWith("/api/auth/") ? next() : requireUser(c, next)));
+app.route("/api/auth", auth);
+app.route("/api", account);
+
+// Every unit route works inside one search (?search=<id>): its criteria pick the
+// units, and statuses/notes are shared by its members only.
+const searchOf = (c: any) => memberSearch(db(c), c.req.query("search"), c.get("user").email);
 
 const fillThumb = (t: string | null | undefined, dim = "360x240"): string | null =>
   t
@@ -40,16 +40,43 @@ app.get("/api/meta", async (c) => {
 // The one endpoint that matters (PRD 8).
 app.get("/api/units", async (c) => {
   const q = c.req.query();
+  const search = await searchOf(c);
+  if (!search) return c.json({ error: "search not found" }, 404);
+  // $1 is always the search id (status/note joins below).
+  const params: unknown[] = [search.id];
   // Liked+ units stay visible after every listing delists (disappearing is signal);
   // anything else must have an active listing.
   const where: string[] = [
     "(l.delisted_at IS NULL OR s.status IN ('liked','visit_booked','proposal_made'))",
   ];
-  const params: unknown[] = [];
   const add = (clause: string, value: unknown) => {
     params.push(value);
     where.push(clause.replace("?", `$${params.length}`));
   };
+
+  // The search's own criteria. Anything already triaged in this search stays,
+  // so a liked unit whose rent went over the max keeps showing (that's signal).
+  const crit: string[] = [];
+  const need = (clause: string, value: unknown) => {
+    params.push(value);
+    crit.push(clause.replace("?", `$${params.length}`));
+  };
+  need("u.neighborhood = ANY(?)", search.neighborhoods);
+  if (search.total_min_cents != null) need("c.total_monthly_cents >= ?", search.total_min_cents);
+  if (search.total_max_cents != null) need("c.total_monthly_cents <= ?", search.total_max_cents);
+  if (search.bedrooms_min) need("COALESCE(c.bedrooms, 0) >= ?", search.bedrooms_min);
+  if (search.bathrooms_min) need("COALESCE(c.bathrooms, 0) >= ?", search.bathrooms_min);
+  if (search.parking_min) need("COALESCE(c.parking_spots, 0) >= ?", search.parking_min);
+  if (search.pets === "required") crit.push("c.accepts_pets IS TRUE");
+  if (search.pets === "unknown_ok") crit.push("c.accepts_pets IS DISTINCT FROM FALSE");
+  if (search.furnished === "yes") crit.push("c.furnished IN ('full','partial')");
+  if (search.furnished === "no") crit.push("c.furnished IS DISTINCT FROM 'full' AND c.furnished IS DISTINCT FROM 'partial'");
+  for (const f of search.facilities)
+    if (FACILITIES[f]) {
+      params.push(FACILITIES[f].codes); // not via need(): its "?" swap would hit the ?| operator
+      crit.push(`COALESCE(c.raw->'listing'->'amenities', c.raw->'amenities', '[]') ?| $${params.length}`);
+    }
+  where.push(`(s.status IS NOT NULL OR (${crit.join(" AND ")}))`);
 
   if (q.total_max) add("c.total_monthly_cents <= ?", Number(q.total_max));
   if (q.total_min) add("c.total_monthly_cents >= ?", Number(q.total_min));
@@ -157,13 +184,13 @@ app.get("/api/units", async (c) => {
     JOIN agg a ON a.unit_id = c.unit_id
     LEFT JOIN LATERAL (
       SELECT status, actor, visit_at, amount_cents, note FROM status_events
-      WHERE unit_id = u.id ORDER BY id DESC LIMIT 1
+      WHERE unit_id = u.id AND search_id = $1 ORDER BY id DESC LIMIT 1
     ) s ON true
     LEFT JOIN LATERAL (
       SELECT array_agg(DISTINCT actor) AS liked_by FROM status_events
-      WHERE unit_id = u.id AND status = 'liked' AND actor IS NOT NULL
+      WHERE unit_id = u.id AND search_id = $1 AND status = 'liked' AND actor IS NOT NULL
     ) lb ON true
-    LEFT JOIN unit_notes n ON n.unit_id = u.id
+    LEFT JOIN unit_notes n ON n.unit_id = u.id AND n.search_id = $1
     WHERE ${where.join(" AND ")}
     ORDER BY ${ORDERS[sort]}
     LIMIT $${params.length}`,
@@ -222,15 +249,17 @@ app.get("/api/units", async (c) => {
 app.get("/api/units/:id", async (c) => {
   const sql = db(c);
   const id = c.req.param("id");
+  const search = await searchOf(c);
+  if (!search) return c.json({ error: "search not found" }, 404);
   const [unit] = await sql`
     SELECT u.*, s.status, s.actor AS status_actor, s.visit_at AS status_visit_at,
       s.amount_cents AS status_amount_cents, s.note AS status_note, n.note
     FROM units u
     LEFT JOIN LATERAL (
       SELECT status, actor, visit_at, amount_cents, note FROM status_events
-      WHERE unit_id = u.id ORDER BY id DESC LIMIT 1
+      WHERE unit_id = u.id AND search_id = ${search.id} ORDER BY id DESC LIMIT 1
     ) s ON true
-    LEFT JOIN unit_notes n ON n.unit_id = u.id
+    LEFT JOIN unit_notes n ON n.unit_id = u.id AND n.search_id = ${search.id}
     WHERE u.id = ${id}`;
   if (!unit) return c.json({ error: "not found" }, 404);
 
@@ -270,7 +299,9 @@ const STATUSES = ["liked", "visit_booked", "proposal_made", "dismissed"];
 app.put("/api/units/:id/status", async (c) => {
   const sql = db(c);
   const id = c.req.param("id");
-  const actor = c.req.header("cf-access-authenticated-user-email") ?? null;
+  const search = await searchOf(c);
+  if (!search) return c.json({ error: "search not found" }, 404);
+  const actor = c.get("user").email;
   const body = await c.req.json<{
     status: string | null;
     visit_at?: string | null;
@@ -280,7 +311,7 @@ app.put("/api/units/:id/status", async (c) => {
   if (body.status === null) {
     // undo: drop the latest event; the previous one (if any) becomes current again
     await sql`DELETE FROM status_events
-      WHERE id = (SELECT max(id) FROM status_events WHERE unit_id = ${id})`;
+      WHERE id = (SELECT max(id) FROM status_events WHERE unit_id = ${id} AND search_id = ${search.id})`;
     return c.json({ ok: true });
   }
   if (!STATUSES.includes(body.status)) return c.json({ error: "bad status" }, 400);
@@ -291,8 +322,8 @@ app.put("/api/units/:id/status", async (c) => {
     (!Number.isInteger(body.amount_cents) || (body.amount_cents as number) <= 0)
   )
     return c.json({ error: "amount_cents required" }, 400);
-  await sql`INSERT INTO status_events (unit_id, status, actor, visit_at, amount_cents, note)
-    VALUES (${id}, ${body.status}, ${actor}, ${body.visit_at ?? null},
+  await sql`INSERT INTO status_events (unit_id, search_id, status, actor, visit_at, amount_cents, note)
+    VALUES (${id}, ${search.id}, ${body.status}, ${actor}, ${body.visit_at ?? null},
             ${body.amount_cents ?? null}, ${body.note ?? null})`;
   return c.json({ ok: true });
 });
@@ -301,15 +332,17 @@ app.put("/api/units/:id/status", async (c) => {
 app.put("/api/units/:id/note", async (c) => {
   const sql = db(c);
   const id = c.req.param("id");
-  const actor = c.req.header("cf-access-authenticated-user-email") ?? null;
+  const search = await searchOf(c);
+  if (!search) return c.json({ error: "search not found" }, 404);
+  const actor = c.get("user").email;
   const body = await c.req.json<{ note?: unknown }>();
   if (typeof body.note !== "string") return c.json({ error: "note required" }, 400);
   if (body.note.trim() === "") {
-    await sql`DELETE FROM unit_notes WHERE unit_id = ${id}`;
+    await sql`DELETE FROM unit_notes WHERE unit_id = ${id} AND search_id = ${search.id}`;
   } else {
-    await sql`INSERT INTO unit_notes (unit_id, note, actor, updated_at)
-      VALUES (${id}, ${body.note}, ${actor}, now())
-      ON CONFLICT (unit_id) DO UPDATE
+    await sql`INSERT INTO unit_notes (unit_id, search_id, note, actor, updated_at)
+      VALUES (${id}, ${search.id}, ${body.note}, ${actor}, now())
+      ON CONFLICT (search_id, unit_id) DO UPDATE
       SET note = EXCLUDED.note, actor = EXCLUDED.actor, updated_at = now()`;
   }
   return c.json({ ok: true });
@@ -317,18 +350,27 @@ app.put("/api/units/:id/note", async (c) => {
 
 app.get("/api/neighborhoods", async (c) => {
   const sql = db(c);
+  const search = await searchOf(c);
+  if (!search) return c.json({ error: "search not found" }, 404);
   const rows = await sql`
     SELECT u.neighborhood, count(DISTINCT u.id)::int AS units
     FROM units u JOIN listings l ON l.unit_id = u.id AND l.delisted_at IS NULL
+    WHERE u.neighborhood = ANY(${search.neighborhoods})
     GROUP BY u.neighborhood ORDER BY units DESC`;
   return c.json(rows);
 });
 
-// Digest: GET /api/digest previews the email (or "nada mudou"); ?send=1 sends it now.
-// The daily cron below calls the same thing.
-async function runDigest(env: Bindings, send: boolean, hours = 25, test = false): Promise<string> {
-  const sql = makeSql((env.DATABASE_URL ?? env.DATABASE_URL_POOLED)!, env.DB_DRIVER);
-  let mail = await buildDigest(sql, env.APP_URL ?? "", hours);
+// Digest, one per search, mailed to its members. GET /api/digest?search=<id>
+// previews it (or "nada mudou"); &send=1 sends it now. The daily cron runs every search.
+async function runDigest(
+  env: Bindings,
+  search: { id: string; neighborhoods: string[] },
+  send: boolean,
+  hours = 25,
+  test = false,
+): Promise<string> {
+  const sql = dbFor(env);
+  let mail = await buildDigest(sql, env.APP_URL ?? "", search, hours);
   // ?test=1: prove delivery works even when nothing changed
   if (!mail && test)
     mail = {
@@ -338,19 +380,9 @@ async function runDigest(env: Bindings, send: boolean, hours = 25, test = false)
   if (!mail) return "nada mudou nos favoritos";
   let report = "";
   if (send) {
-    if (!env.EMAIL || !env.DIGEST_TO || !env.DIGEST_FROM) throw new Error("email binding/vars missing");
-    // One send per recipient: an unverified destination must not block the other.
-    const to = env.DIGEST_TO.split(",").map((t) => t.trim());
-    const results = await Promise.allSettled(
-      to.map((t) =>
-        env.EMAIL!.send({
-          from: { name: "apto-finder", email: env.DIGEST_FROM! },
-          to: t,
-          subject: mail.subject,
-          text: mail.text,
-        }),
-      ),
-    );
+    const to = (await sql`SELECT email FROM search_members WHERE search_id = ${search.id}`).map((r) => r.email);
+    // One send per member: one bad address must not block the others.
+    const results = await Promise.allSettled(to.map((t) => sendMail(env, t, mail.subject, mail.text)));
     report =
       results
         .map((r, i) => `${to[i]}: ${r.status === "fulfilled" ? "enviado" : String(r.reason)}`)
@@ -360,17 +392,26 @@ async function runDigest(env: Bindings, send: boolean, hours = 25, test = false)
 }
 
 app.get("/api/digest", async (c) => {
+  const search = await searchOf(c);
+  if (!search) return c.json({ error: "search not found" }, 404);
   // ?hours= widens the preview window (max 30 days); handy for "what changed this week"
   const hours = Math.min(Number(c.req.query("hours") ?? 25) || 25, 24 * 30);
-  const out = await runDigest(c.env, c.req.query("send") === "1", hours, c.req.query("test") === "1");
+  const out = await runDigest(c.env, search, c.req.query("send") === "1", hours, c.req.query("test") === "1");
   return c.text(out);
 });
 
 export default {
   fetch: app.fetch,
   scheduled: (_ctrl: ScheduledController, env: Bindings, ctx: ExecutionContext) => {
-    // No email binding or recipients configured: the cron is a no-op.
-    if (!env.EMAIL || !env.DIGEST_TO || !env.DIGEST_FROM) return;
-    ctx.waitUntil(runDigest(env, true).then((r) => console.log("digest:", r.split("\n")[0])));
+    ctx.waitUntil(
+      (async () => {
+        const searches = await dbFor(env)`SELECT id, neighborhoods FROM searches`;
+        for (const s of searches)
+          await runDigest(env, s as any, true).then(
+            (r) => console.log(`digest ${s.id}:`, r.split("\n")[0]),
+            (e) => console.error(`digest ${s.id} failed:`, e),
+          );
+      })(),
+    );
   },
 };

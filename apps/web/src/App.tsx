@@ -88,6 +88,8 @@ export default function App() {
     if (unit) params.set("unit", unit);
     const v = current.get("view");
     if (v) params.set("view", v);
+    const s = current.get("search");
+    if (s) params.set("search", s);
     const p = params.toString();
     history.replaceState(null, "", p ? `?${p}` : location.pathname);
     try {

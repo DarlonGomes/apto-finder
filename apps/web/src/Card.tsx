@@ -10,16 +10,14 @@ import { StatusActions } from "./StatusActions";
 
 const SWIPE_THRESHOLD = 80;
 
-// Display name for an Access email. VITE_PEOPLE="a@x.com=Ana,b@y.com=Bruno"
-// overrides; otherwise the local part, capitalized ("ana.silva" -> "Ana").
-const PEOPLE: Record<string, string> = Object.fromEntries(
-  ((import.meta.env.VITE_PEOPLE as string | undefined) ?? "")
-    .split(",")
-    .filter((p) => p.includes("="))
-    .map((p) => p.split("=", 2) as [string, string]),
-);
+// Display name for a member email: their first name once they've onboarded
+// (setPeople, from /api/me), else the local part, capitalized ("ana.silva" -> "Ana").
+const PEOPLE: Record<string, string> = {};
+export const setPeople = (members: { email: string; first_name: string | null }[]) => {
+  for (const m of members) if (m.first_name) PEOPLE[m.email] = m.first_name;
+};
 export const who = (email: string): string =>
-  PEOPLE[email] ??
+  PEOPLE[email.toLowerCase()] ??
   (email.split("@")[0] ?? email).split(/[._+\-\d]/)[0]!.replace(/^./, (c) => c.toUpperCase());
 
 // Deduped units carry several offers: one outbound link per source (cheapest

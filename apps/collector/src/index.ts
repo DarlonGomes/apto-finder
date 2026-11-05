@@ -8,12 +8,20 @@ import { fetchQuintoAndar } from "./quintoandar.js";
 import { normalizeGlue, normalizeQuintoAndar } from "./normalize.js";
 import { connect, saveListing } from "./db.js";
 import { dedupe } from "./dedupe.js";
-import { loadConfig } from "./config.js";
+import { fromSearches, loadConfig, type SearchCriteria } from "./config.js";
 
-// Search criteria come from apto.config.json (see config.ts). Glue's
-// bedrooms/bathrooms/parkingSpaces are exact-match lists, so "2 or more" is
-// spelled "2,3,...". Glue neighborhood names need accents (Grajau -> 0 results).
-const cfg = loadConfig();
+// Criteria: the union of every user search in the DB (see fromSearches), or
+// apto.config.json when there are none yet. City/state/QuintoAndar bounds
+// always come from the file. Glue's bedrooms/bathrooms/parkingSpaces are
+// exact-match lists, so "2 or more" is spelled "2,3,...". Glue neighborhood
+// names need accents (Grajau -> 0 results).
+const client = await connect();
+const { rows: searches } = await client.query<SearchCriteria>(
+  `SELECT neighborhoods, total_min_cents, total_max_cents, bedrooms_min, bathrooms_min,
+          parking_min, pets FROM searches`,
+);
+const cfg = fromSearches(loadConfig(), searches);
+console.log(`criteria: ${searches.length ? `${searches.length} searches` : "config file"}`);
 const NEIGHBORHOODS = cfg.neighborhoods;
 const PLACE = { city: cfg.city, state: cfg.state };
 
@@ -36,7 +44,6 @@ const QA_CANON = new Map(
   [...NEIGHBORHOODS, ...cfg.quintoandar.extraNeighborhoods].map((n) => [fold(n), n]),
 );
 
-const client = await connect();
 const started = Date.now();
 let saved = 0;
 let skipped = 0;
