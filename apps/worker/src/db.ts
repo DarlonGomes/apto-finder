@@ -29,3 +29,15 @@ export function makeSql(url: string, driver = url.includes("neon.tech") ? "neon"
   tag.query = run;
   return tag;
 }
+
+export type Bindings = {
+  DATABASE_URL?: string;
+  DATABASE_URL_POOLED?: string;
+  DB_DRIVER?: "neon" | "pg"; // default: neon for *.neon.tech URLs, pg otherwise
+  EMAIL?: SendEmail; // Cloudflare Email Service; missing = mail is logged (local dev)
+  DIGEST_FROM?: string; // sender address for every email (login codes, invites, digest)
+  APP_URL?: string;
+};
+
+export const dbFor = (env: Bindings) =>
+  makeSql((env.DATABASE_URL ?? env.DATABASE_URL_POOLED)!, env.DB_DRIVER);
