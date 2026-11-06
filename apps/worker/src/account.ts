@@ -73,7 +73,9 @@ auth.post("/start", async (c) => {
   await sql`INSERT INTO login_codes (email, code_hash, expires_at, attempts, sent_at)
     VALUES (${email}, ${await sha256(`${email}:${code}`)}, now() + ${CODE_TTL}::interval, 0, now())
     ON CONFLICT (email) DO UPDATE SET code_hash = EXCLUDED.code_hash,
-      expires_at = EXCLUDED.expires_at, attempts = 0, sent_at = now()`;
+      expires_at = EXCLUDED.expires_at, sent_at = now(),
+      -- a resend keeps the guess count for an hour, or "start, 5 guesses" loops forever
+      attempts = CASE WHEN login_codes.sent_at > now() - interval '1 hour' THEN login_codes.attempts ELSE 0 END`;
   await sendMail(
     c.env,
     email,
@@ -144,7 +146,14 @@ account.put("/me", async (c) => {
   return c.json({ ok: true });
 });
 
+const INVITES_PER_DAY = 20;
+
 async function invite(c: { env: Bindings }, sql: Sql, searchId: string, inviter: User, email: string) {
+  // Invites mail any address with the inviter's name in it: cap them so a
+  // throwaway account can't use DIGEST_FROM as a spam relay.
+  const [{ n }] = await sql`SELECT count(*)::int AS n FROM search_members
+    WHERE invited_by = ${inviter.id} AND email <> ${inviter.email} AND created_at > now() - interval '1 day'`;
+  if (n >= INVITES_PER_DAY) return;
   const [added] = await sql`INSERT INTO search_members (search_id, email, invited_by)
     VALUES (${searchId}, ${email}, ${inviter.id}) ON CONFLICT DO NOTHING RETURNING email`;
   if (!added) return;

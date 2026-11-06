@@ -72,8 +72,8 @@ app.get("/api/units", async (c) => {
   if (search.furnished === "yes") crit.push("c.furnished IN ('full','partial')");
   if (search.furnished === "no") crit.push("c.furnished IS DISTINCT FROM 'full' AND c.furnished IS DISTINCT FROM 'partial'");
   for (const f of search.facilities)
-    if (FACILITIES[f]) {
-      params.push(FACILITIES[f].codes); // not via need(): its "?" swap would hit the ?| operator
+    if (Object.hasOwn(FACILITIES, f)) {
+      params.push(FACILITIES[f]!.codes); // not via need(): its "?" swap would hit the ?| operator
       crit.push(`COALESCE(c.raw->'listing'->'amenities', c.raw->'amenities', '[]') ?| $${params.length}`);
     }
   where.push(`(s.status IS NOT NULL OR (${crit.join(" AND ")}))`);

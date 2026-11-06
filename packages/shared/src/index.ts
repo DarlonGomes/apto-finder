@@ -166,6 +166,8 @@ export interface Me {
   searches: Search[];
 }
 
+export const MAX_NEIGHBORHOODS = 15;
+
 const optInt = (v: unknown, max: number): number | null | undefined =>
   v == null || v === "" ? null : Number.isInteger(v) && (v as number) >= 0 && (v as number) <= max ? (v as number) : undefined;
 
@@ -175,6 +177,9 @@ export function validateSearch(b: any): SearchInput | string {
   if (!b || typeof b !== "object") return "dados inválidos";
   const hoods: string[] = Array.isArray(b.neighborhoods) ? [...new Set(b.neighborhoods as string[])] : [];
   if (hoods.length === 0) return "escolha ao menos um bairro";
+  // ponytail: per-search cap only; the collector sweeps the union of every
+  // search, so many accounts can still widen it. Gate signups if that happens.
+  if (hoods.length > MAX_NEIGHBORHOODS) return `escolha no máximo ${MAX_NEIGHBORHOODS} bairros`;
   if (!hoods.every((h) => (RIO_NEIGHBORHOODS as readonly string[]).includes(h))) return "bairro desconhecido";
   const min = optInt(b.total_min_cents, 100_000_000);
   const max = optInt(b.total_max_cents, 100_000_000);
@@ -188,7 +193,7 @@ export function validateSearch(b: any): SearchInput | string {
   const furnished = b.furnished ?? "any";
   if (!["any", "yes", "no"].includes(furnished)) return "opção de mobília inválida";
   const facilities: string[] = Array.isArray(b.facilities) ? [...new Set(b.facilities as string[])] : [];
-  if (!facilities.every((f) => f in FACILITIES)) return "comodidade desconhecida";
+  if (!facilities.every((f) => Object.hasOwn(FACILITIES, f))) return "comodidade desconhecida";
   const name = typeof b.name === "string" && b.name.trim() ? b.name.trim().slice(0, 60) : "Minha busca";
   return {
     name, neighborhoods: hoods,

@@ -4,7 +4,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FACILITIES, RIO_NEIGHBORHOODS, type Me, type Search, type SearchInput } from "@apto/shared";
+import { FACILITIES, MAX_NEIGHBORHOODS, RIO_NEIGHBORHOODS, type Me, type Search, type SearchInput } from "@apto/shared";
 import App from "./App";
 import {
   createSearch,
@@ -193,7 +193,7 @@ function SearchForm({
         <input className={input} placeholder="Minha busca" value={s.name} onChange={(e) => set("name", e.target.value)} />
       </Field>
 
-      <p className="mt-5 text-sm font-semibold">Bairros * <span className="font-normal text-muted">({s.neighborhoods.length} escolhidos)</span></p>
+      <p className="mt-5 text-sm font-semibold">Bairros * <span className="font-normal text-muted">({s.neighborhoods.length} de {MAX_NEIGHBORHOODS})</span></p>
       <input className={`${input} mt-2`} placeholder="filtrar bairros" value={hoodFilter} onChange={(e) => setHoodFilter(e.target.value)} />
       <div className="mt-2 flex max-h-56 flex-wrap gap-2 overflow-y-auto">
         {hoods.map((h) => (
@@ -290,7 +290,12 @@ function SearchBar({ me, search, onSwitch }: { me: Me; search: Search; onSwitch:
   });
   const create = useMutation({
     mutationFn: (s: SearchInput) => createSearch({ ...s, invite: [] }),
-    onSuccess: (r) => (done(), onSwitch(r.id)),
+    onSuccess: async (r) => {
+      // switch only once /me lists the new search, or Gate falls back to searches[0] for a render
+      await qc.refetchQueries({ queryKey: ["me"] });
+      setOpen(null);
+      onSwitch(r.id);
+    },
   });
   const add = useMutation({ mutationFn: (e: string) => inviteMember(search.id, e), onSuccess: done });
   const btn = "px-1.5 py-1 text-xs text-muted hover:text-ink";
